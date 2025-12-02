@@ -226,7 +226,7 @@
               <span>Total</span><strong>$<%= total.toFixed(2) %></strong>
             </div>
             <div style="margin-top:12px">
-              <form action="/orders" method="POST" style="display:inline-block">
+              <form action="/checkout" method="POST" style="display:inline-block">
                 <button class="btn primary" type="submit" <%= (!cart || !cart.length) ? 'disabled' : '' %>>Checkout</button>
               </form>
             </div>
