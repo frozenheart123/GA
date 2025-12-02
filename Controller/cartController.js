@@ -199,6 +199,22 @@ const CartController = {
   }
   
 };
+// Ensure a session-backed cart exists (used by session/local cart flows)
+CartController.ensureCart = function (req) {
+  if (!req || !req.session) return [];
+  if (!Array.isArray(req.session.cart)) req.session.cart = [];
+  return req.session.cart;
+};
+
+// Compute cart totals (works with items that use `qty` or `quantity`)
+CartController.computeCartTotals = function (cart, isMember) {
+  const subtotal = Array.isArray(cart)
+    ? cart.reduce((sum, item) => sum + Number(item.price || 0) * Number(item.qty || item.quantity || 0), 0)
+    : 0;
+  const cashback = isMember ? subtotal * 0.05 : 0;
+  const total = subtotal - cashback;
+  return { subtotal, cashback, total };
+};
 
 module.exports = CartController;
 
