@@ -1,0 +1,598 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Mala Hot Pot Market &mdash; Home</title>
+  <meta name="description" content="Build your spicy feast with fresh ingredients and signature soups at Mala Hot Pot Market." />
+  <style>
+    :root{
+      --primary:#d14343; --primary-ink:#8b1f1f; --ink:#0f172a; --muted:#6b7280;
+      --card:#ffffff; --soft:#f6f7fb; --ring:#e5e7eb; --accent:#fef3f3;
+      --radius:16px; --shadow:0 10px 30px rgba(15,23,42,.08); --space:18px; --max:1160px;
+    }
+    *{box-sizing:border-box}
+    html,body{height:100%}
+    body{
+      margin:0;
+      font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;
+      font-size:18px;
+      line-height:1.6;
+      color:var(--ink);
+      background:linear-gradient(180deg,#fff, #fff 45%, #fdf6f6 100%);
+      -webkit-font-smoothing:antialiased; text-rendering:optimizeLegibility;
+    }
+    a{color:var(--primary);text-decoration:none}
+    img{max-width:100%;display:block}
+    .container{max-width:var(--max);margin:0 auto;padding:24px}
+    .stack{display:flex;flex-direction:column;gap:var(--space)}
+    .row{display:flex;gap:var(--space);flex-wrap:wrap}
+    .grid{display:grid;gap:var(--space);grid-auto-rows:1fr}
+    @media (min-width:640px){ .grid.cols-3{grid-template-columns:repeat(3,minmax(0,1fr))} }
+    @media (min-width:900px){ .grid.cols-4{grid-template-columns:repeat(4,minmax(0,1fr))} }
+
+    .navbar{ position:sticky;top:0;z-index:20; background:rgba(255,255,255,.9); backdrop-filter:saturate(180%) blur(8px); border-bottom:1px solid var(--ring); }
+    .navwrap{max-width:var(--max);margin:0 auto;display:flex;gap:16px;align-items:center;justify-content:space-between;padding:14px 24px}
+    .brand{display:flex;align-items:center;gap:10px;font-weight:900;letter-spacing:.3px;color:var(--primary-ink); font-size:1.15rem;}
+    .brand svg{width:28px;height:28px}
+    .navlinks{display:flex;gap:16px;align-items:center;flex-wrap:wrap}
+    .navlinks a{color:var(--ink);opacity:.9; font-size:1.05rem;}
+    .badge{ padding:7px 14px;border-radius:999px;background:#ffe6e6;color:var(--primary-ink); font-weight:800;border:1px solid #ffd1d1; font-size:1rem; }
+
+    .hero{ margin-top:10px; background: radial-gradient(1200px 600px at 80% -10%, #ffdede 0%, transparent 60%), radial-gradient(900px 500px at -10% 0%, #fff4f4 0%, transparent 55%), linear-gradient(180deg,#fff, #fff 60%, #fff6f6 100%); border:1px solid var(--ring); border-radius:calc(var(--radius) + 6px); box-shadow:var(--shadow); padding: clamp(20px, 5.2vw, 46px); display:grid;gap:24px; }
+    @media (min-width:900px){ .hero{grid-template-columns:1.25fr .75fr; align-items:center} }
+    .hero h1{ margin:0 0 10px 0; font-size:clamp(28px, 4vw, 48px); line-height:1.1; letter-spacing:.2px; }
+    .hero p{ margin:0;color:#404e68; font-size:1.05rem; }
+    .chipbar{display:flex;gap:12px;flex-wrap:wrap;margin-top:16px}
+    .chip{ border:1px solid var(--ring);background:#fff;padding:10px 14px;border-radius:999px; font-weight:700;cursor:pointer; font-size:1rem; }
+    .cta{display:flex;gap:14px;flex-wrap:wrap;margin-top:18px}
+    .btn{ padding:14px 18px;border-radius:14px;border:1px solid var(--ring);background:#fff;cursor:pointer; font-weight:800; font-size:1.05rem; box-shadow:0 4px 12px rgba(0,0,0,.04); }
+    .btn.primary{background:var(--primary);border-color:var(--primary);color:#fff}
+    .btn.ghost{background:#fff;border-color:#f1c2c2;color:var(--primary-ink);box-shadow:0 4px 12px rgba(209,67,67,.1);}
+    .btn.ghost:hover{background:#fff4f4;}
+    .note{font-size:1rem;color:var(--muted)}
+    .section-title{display:flex;align-items:end;justify-content:space-between;gap:12px}
+    .card{ background:var(--card); border:1px solid var(--ring); border-radius:var(--radius); box-shadow:var(--shadow); overflow:hidden; display:flex;flex-direction:column; transition:transform .12s ease, box-shadow .12s ease; height:100%; }
+    .card:hover{transform:translateY(-2px); box-shadow:0 16px 40px rgba(15,23,42,.12)}
+    .card img{ width:100%; height:220px; object-fit:cover; }
+    .card-body{padding:16px; flex:1; display:flex; flex-direction:column; justify-content:space-between; }
+    .card-meta{ display:flex; justify-content:space-between; align-items:center; gap:12px; }
+    .card-actions{ display:flex; justify-content:space-between; align-items:flex-end; gap:12px; margin-top:8px; }
+    .card-actions .action-stack{display:flex;gap:8px;align-items:center;}
+    .price{font-weight:900; font-size:1.05rem;}
+    .pill{font-size:.95rem;background:var(--accent);border:1px solid #ffd1d1;color:var(--primary-ink);padding:6px 10px;border-radius:999px}
+    footer{margin-top:32px;border-top:1px solid var(--ring); background:#fff}
+    .foot{max-width:var(--max);margin:0 auto;padding:22px 24px;color:var(--muted);font-size:1rem;display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap}
+    .hide-mobile{display:none}
+    @media (min-width:640px){ .hide-mobile{display:block} }
+    .quick-view-modal{
+      position:fixed;
+      inset:0;
+      background:rgba(15,23,42,.65);
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      opacity:0;
+      pointer-events:none;
+      transition:opacity .2s ease;
+      z-index:40;
+    }
+    .quick-view-modal.active{
+      opacity:1;
+      pointer-events:auto;
+    }
+    .quick-view-modal .modal-card{
+      background:var(--card);
+      border-radius:24px;
+      border:1px solid rgba(255,255,255,.4);
+      box-shadow:0 20px 40px rgba(15,23,42,.3);
+      max-width:520px;
+      width:100%;
+      overflow:hidden;
+      position:relative;
+      display:flex;
+      flex-direction:column;
+    }
+    .quick-view-modal .modal-card img{
+      width:100%;
+      height:240px;
+      object-fit:cover;
+    }
+    .flyer-clone{
+      position:fixed;
+      transition:transform .8s cubic-bezier(.22,.61,.36,1), opacity .8s ease;
+      border-radius:12px;
+      box-shadow:0 8px 30px rgba(0,0,0,.3);
+      pointer-events:none;
+      z-index:90;
+      opacity:1;
+    }
+    .quick-view-modal .modal-card-body{
+      padding:20px;
+      display:flex;
+      flex-direction:column;
+      gap:12px;
+    }
+    .quick-view-modal .close-btn{
+      position:absolute;
+      top:12px;
+      right:12px;
+      background:rgba(255,255,255,.8);
+      border:none;
+      border-radius:50%;
+      width:36px;
+      height:36px;
+      font-size:1.3rem;
+      cursor:pointer;
+      font-weight:800;
+      color:var(--primary-ink);
+    }
+    .quick-view-modal form .qty-row{
+      display:flex;
+      align-items:center;
+      gap:10px;
+      justify-content:space-between;
+    }
+    .quick-view-modal .qty-input{
+      width:80px;
+      padding:8px 10px;
+      border-radius:10px;
+      border:1px solid var(--ring);
+      font-size:1rem;
+      text-align:center;
+    }
+  </style>
+  <script>
+    function goMenu(cat){
+      sessionStorage.setItem('menu_pref_cat', cat);
+      location.href = '/menu';
+    }
+  </script>
+</head>
+<body>
+  <header class="navbar">
+    <div class="navwrap">
+      <div class="brand">
+        <svg viewBox="0 0 24 24" fill="none">
+          <path d="M6 12c3.5-3.5 6-2 10-6 1.6-1.6 3-1.5 3 0 0 2-2 4-3 5-5 5-7 8-11 8-2.5 0-3.5-1.5-3-3 1-3 2-3 4-4z" stroke="#d14343" stroke-width="1.5" fill="#ffdddd"/>
+          <path d="M15 6c0-2 1-3 3-3" stroke="#8b1f1f" stroke-width="1.5" stroke-linecap="round"/>
+        </svg>
+        <span>Mala Hot Pot Market</span>
+      </div>
+      <nav class="navlinks">
+        <% const showCustomerLinks = !user || user.role !== 'admin'; %>
+        <a href="/" aria-current="page"><strong>Home</strong></a>
+        <a href="/menu">Menu</a>
+
+        <% if (showCustomerLinks) { %>
+          <a id="cartLink" href="/cart">Cart</a>
+          <a href="/membership">Membership</a>
+        <% } %>
+        <% if (user && user.role !== 'admin') { %>
+          <a href="/orders">My Orders</a>
+        <% } %>
+        <% if (user && user.role === 'admin') { %>
+          <a href="/admin">Admin</a>
+        <% } %>
+
+        <% if (user) { %>
+        <% } else { %>
+          <a class="hide-mobile" href="/register">Register</a>
+          <a class="hide-mobile" href="/login">Login</a>
+        <% } %>
+      </nav>
+      <% if (user) { %>
+        <div style="position:relative">
+          <button id="avatarBtn" style="display:flex;align-items:center;gap:8px;border:1px solid var(--ring);background:#ffe6e6;color:#8b1f1f;padding:6px 10px;border-radius:999px;font-weight:800;cursor:pointer">
+            <span style="display:inline-block;width:28px;height:28px;border-radius:50%;overflow:hidden;background:#fce2e2;border:1px solid #f7caca">
+              <% if (user.avatar_url) { %>
+                <img src="<%= user.avatar_url %>" alt="avatar" style="width:100%;height:100%;object-fit:cover" />
+              <% } else { %>
+                <span style="display:block;width:100%;height:100%;line-height:28px;text-align:center;font-size:.85rem;color:#8b1f1f">U</span>
+              <% } %>
+            </span>
+            <span><%= user.role === 'admin' ? 'Admin' : 'User' %></span>
+          </button>
+          <div id="userMenu" style="display:none;position:absolute;right:0;top:44px;background:#fff;border:1px solid var(--ring);border-radius:12px;box-shadow:var(--shadow);padding:10px;min-width:220px;z-index:50">
+            <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">
+              <div style="width:36px;height:36px;border-radius:50%;overflow:hidden;background:#fce2e2;border:1px solid #f7caca">
+                <% if (user.avatar_url) { %>
+                  <img src="<%= user.avatar_url %>" alt="avatar" style="width:100%;height:100%;object-fit:cover" />
+                <% } else { %>
+                  <span style="display:block;width:100%;height:100%;line-height:36px;text-align:center;font-size:.9rem;color:#8b1f1f">U</span>
+                <% } %>
+              </div>
+              <div>
+                <div style="font-weight:800"><%= user.name %></div>
+                <div style="font-size:.9rem;color:#64748b"><%= user.role %></div>
+              </div>
+            </div>
+            <div class="note" style="margin:6px 0 10px 0">Change avatar in <a href="/account">My Profile</a>.</div>
+            <div style="display:flex;flex-direction:column;gap:6px">
+              <% if (user.role === 'admin') { %>
+                <a class="btn" style="text-align:left" href="/account">My Profit</a>
+              <% } else { %>
+                <a class="btn" style="text-align:left" href="/account">My Profile</a>
+                <a class="btn" style="text-align:left" href="/orders">My Orders</a>
+              <% } %>
+              <a class="btn" style="text-align:left" href="/logout">Logout</a>
+            </div>
+          </div>
+        </div>
+        <script>
+          (function(){
+            var b=document.getElementById('avatarBtn');
+            var m=document.getElementById('userMenu');
+            if(!b||!m) return;
+            b.addEventListener('click',function(ev){
+              ev.preventDefault();
+              m.style.display = (m.style.display==='block') ? 'none' : 'block';
+            });
+            document.addEventListener('click',function(e){
+              if (m && b && !m.contains(e.target) && e.target!==b && !b.contains(e.target)) m.style.display='none';
+            });
+          })();
+        </script>
+      <% } else { %>
+        <div class="badge" id="member-badge">Guest</div>
+      <% } %>
+    </div>
+  </header>
+
+  <main class="container stack">
+    <section class="hero">
+      <div>
+        <h1 id="h1">Spice up your bowl &mdash; fresh picks, bold flavours.</h1>
+        <p>Create your perfect hot pot with premium cuts, crunchy veg, and silky noodles. Members enjoy <strong>5% off</strong> every day.</p>
+
+        <div class="chipbar">
+          <button class="chip" onclick="goMenu('Meat')">&#129385; Meat</button>
+          <button class="chip" onclick="goMenu('Veg')">&#129382; Veg</button>
+          <button class="chip" onclick="goMenu('Noodles')">&#127836; Noodles</button>
+          <button class="chip" onclick="goMenu('All')">&#10024; All</button>
+        </div>
+
+        <div class="cta">
+          <button class="btn primary" onclick="location.href='/menu'">Browse Menu</button>
+          <button class="btn" onclick="location.href='/membership'">Join Membership</button>
+        </div>
+        <p class="note">Today&rsquo;s deal: <strong>Members 5% off</strong> storewide.</p>
+      </div>
+
+      <div class="stack">
+        <div class="card">
+          <img src="data:image/svg+xml;utf8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='900' height='500'%3E%3Crect width='100%25' height='100%25' fill='%23ffe6e6'/%3E%3Ctext x='50%25' y='50%25' dominant-baseline='middle' text-anchor='middle' font-size='42' fill='%23d14343' font-family='Arial'%3ESignature Mala Broth%3C/text%3E%3C/svg%3E" alt="">
+          <div class="card-body">
+            <div class="row" style="justify-content:space-between;align-items:center">
+              <strong>Signature Mala Broth</strong><span class="pill">Best Seller</span>
+            </div>
+            <span class="price">Medium &bull; $3.50</span>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="stack">
+      <div class="section-title">
+        <h2>Popular Picks</h2>
+        <a href="/menu" class="pill">View full menu &rarr;</a>
+      </div>
+
+      <div class="grid cols-3">
+        <% if (products && products.length) { %>
+          <% products.forEach(function(p){ %>
+            <% const fallbackImage = p.image || "data:image/svg+xml;utf8,%3Csvg xmlns=\\\"http://www.w3.org/2000/svg\\\" width=\\\"900\\\" height=\\\"600\\\"%3E%3Crect width=\\\"100%25\\\" height=\\\"100%25\\\" fill=\\\"%23fff\\\"/%3E%3Ctext x=\\\"50%25\\\" y=\\\"50%25\\\" dominant-baseline=\\\"middle\\\" text-anchor=\\\"middle\\\" font-size=\\\"34\\\" fill=\\\"%238b1f1f\\\" font-family=\\\"Arial\\\"%3EDish%20Preview%3C/text%3E%3C/svg%3E"; %>
+            <article class="card">
+              <% if (p.image) { %>
+                <img src="<%= fallbackImage %>" alt="<%= p.name %>">
+              <% } else { %>
+                <img src="<%= fallbackImage %>" alt="<%= p.name %>">
+              <% } %>
+              <div class="card-body">
+                <div class="card-meta">
+                  <strong><%= p.name %></strong><span class="pill"><%= p.product_type || 'Item' %></span>
+                </div>
+                <div class="card-actions">
+                  <span class="price">$<%= (p && p.price != null && !isNaN(Number(p.price))) ? Number(p.price).toFixed(2) : '0.00' %></span>
+                  <div class="action-stack">
+                    <button type="button" class="btn ghost quick-view" data-product='<%- JSON.stringify({
+                      id: p.product_id,
+                      name: p.name,
+                      price: ((p && p.price != null && !isNaN(Number(p.price))) ? Number(p.price).toFixed(2) : '0.00'),
+                      description: (p.description || 'Fresh selections ready for your hot pot'),
+                      image: fallbackImage,
+                      type: p.product_type || 'Item'
+                    }) %>'>Quick View</button>
+                    <% if (p.quantity > 0) { %>
+                      <form class="add-to-cart-form" method="post" action="/cart/add" data-product-name="<%= p.name %>" data-product-price="<%= (p && p.price != null && !isNaN(Number(p.price))) ? Number(p.price).toFixed(2) : '0.00' %>">
+                        <input type="hidden" name="product_id" value="<%= p.product_id %>">
+                        <input type="hidden" name="qty" value="1">
+                        <button class="btn primary" type="submit">Add</button>
+                      </form>
+                    <% } else { %>
+                      <span class="pill">Unavailable</span>
+                    <% } %>
+                  </div>
+                </div>
+              </div>
+            </article>
+          <% }) %>
+        <% } else { %>
+          <article class="card">
+            <img src="data:image/svg+xml;utf8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='900' height='600'%3E%3Crect width='100%25' height='100%25' fill='%23fff'/%3E%3Ctext x='50%25' y='50%25' dominant-baseline='middle' text-anchor='middle' font-size='34' fill='%238b1f1f'%3EBeef Slices%3C/text%3E%3C/svg%3E" alt="Beef Slices">
+            <div class="card-body">
+              <div class="card-meta">
+                <strong>Beef Slices</strong><span class="pill">Meat</span>
+              </div>
+              <div class="card-actions">
+                <span class="price">$6.90 / 100g</span>
+                <button class="btn" onclick="addToCart('Beef Slices',6.9)">Add</button>
+              </div>
+            </div>
+          </article>
+        <% } %>
+      </div>
+    </section>
+
+    <section class="grid" style="grid-template-columns:repeat(3,minmax(0,1fr))">
+      <div class="card" style="padding:16px">
+        <div class="row" style="align-items:center;gap:12px">
+          <span style="font-size:26px">&#10003;</span><div><strong>Freshness First</strong><div class="note">Daily prep, premium cuts.</div></div>
+        </div>
+      </div>
+      <div class="card" style="padding:16px">
+        <div class="row" style="align-items:center;gap:12px">
+          <span style="font-size:26px">&#9889;</span><div><strong>Fast Checkout</strong><div class="note">PayNow supported.</div></div>
+        </div>
+      </div>
+      <div class="card" style="padding:16px">
+        <div class="row" style="align-items:center;gap:12px">
+          <span style="font-size:26px">&#11088;</span><div><strong>Member Perks</strong><div class="note">5% off, priority queue.</div></div>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <footer>
+    <div class="foot">
+      <div>&copy; 2025 Mala Hot Pot Market</div>
+      <div>Made for prototype demo &mdash; SG</div>
+    </div>
+  </footer>
+
+  <div id="quickViewModal" class="quick-view-modal" aria-hidden="true">
+    <div class="modal-card">
+      <button type="button" class="close-btn" aria-label="Close">&times;</button>
+      <img id="quickViewImage" src="" alt="Product preview">
+      <div class="modal-card-body">
+        <div class="card-meta">
+          <strong id="quickViewName"></strong><span class="pill" id="quickViewType"></span>
+        </div>
+        <span class="price" id="quickViewPrice"></span>
+        <p class="note" id="quickViewDescription"></p>
+        <form id="quickViewForm" method="post" action="/cart/add">
+          <input type="hidden" name="product_id" id="quickViewProductId" value="">
+          <div class="qty-row">
+            <label for="quickViewQty">Qty</label>
+            <input type="number" min="1" value="1" id="quickViewQty" name="qty" class="qty-input">
+          </div>
+          <button class="btn primary" type="submit">Add to cart</button>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const LOCAL_CART_KEY = 'cart';
+    const USER_CART_KEY = <%- JSON.stringify(user ? `cart_saved_user_${user.user_id}` : null) %>;
+    (function hydrateSavedCart() {
+      if (!USER_CART_KEY) return;
+      const saved = localStorage.getItem(USER_CART_KEY);
+      if (saved) localStorage.setItem(LOCAL_CART_KEY, saved);
+    })();
+    function persistUserCart() {
+      if (!USER_CART_KEY) return;
+      const value = localStorage.getItem(LOCAL_CART_KEY);
+      if (value === null) localStorage.removeItem(USER_CART_KEY);
+      else localStorage.setItem(USER_CART_KEY, value);
+    }
+    function getLocalCart(){
+      try {
+        return JSON.parse(localStorage.getItem(LOCAL_CART_KEY) || '[]');
+      } catch (e) {
+        return [];
+      }
+    }
+    function saveLocalCart(cart){
+      localStorage.setItem(LOCAL_CART_KEY, JSON.stringify(cart));
+      persistUserCart();
+    }
+    function addToLocalCart(item){
+      const cart = getLocalCart();
+      const qty = Math.max(1, Number(item.qty || 1));
+      const price = Number(item.price || 0);
+      const name = item.name || 'Item';
+      const existing = item.product_id ? cart.find(i => i.product_id && String(i.product_id) === String(item.product_id)) : cart.find(i => !i.product_id && i.name === name);
+      if (existing) {
+        existing.qty = Number(existing.qty || 0) + qty;
+      } else {
+        cart.push({
+          product_id: item.product_id || null,
+          name,
+          price: Number.isFinite(price) ? price : 0,
+          qty,
+        });
+      }
+      saveLocalCart(cart);
+    }
+    function addToCart(name, price){
+      addToLocalCart({ name, price, qty: 1 });
+      toast(`${name} added to cart`);
+    }
+    function toast(msg){
+      let el = document.createElement('div');
+      el.textContent = msg;
+      el.style.position='fixed';
+      el.style.left='50%'; el.style.bottom='28px';
+      el.style.transform='translateX(-50%)';
+      el.style.background='rgba(15,23,42,.95)';
+      el.style.color='#fff';
+      el.style.padding='12px 16px';
+      el.style.borderRadius='12px';
+      el.style.boxShadow='0 8px 24px rgba(0,0,0,.25)';
+      el.style.fontWeight='800';
+      el.style.fontSize='1rem';
+      el.style.zIndex='90';
+      document.body.appendChild(el);
+      setTimeout(()=>{ el.style.transition='opacity .3s ease'; el.style.opacity='0'; }, 1200);
+      setTimeout(()=>{ el.remove(); }, 1600);
+    }
+  </script>
+  <script>
+    (function(){
+      const isMember = JSON.parse(localStorage.getItem('is_member')||'false');
+      const badge = document.getElementById('member-badge');
+      var __role = <%- JSON.stringify(user ? user.role : null) %>;
+      if (badge) {
+        if (!__role) {
+          badge.textContent = 'Guest';
+          localStorage.setItem('is_member','false');
+        } else if (__role === 'admin') {
+          badge.textContent = 'Admin';
+        } else {
+          badge.textContent = isMember ? 'Member' : 'User';
+        }
+      }
+      const ex = localStorage.getItem('member_expires');
+      if(ex && new Date(ex) < new Date()){
+        localStorage.setItem('is_member','false');
+        if (badge && __role && __role !== 'admin') badge.textContent = 'User';
+      }
+    })();
+  </script>
+  <script>
+    (function(){
+      const modal = document.getElementById('quickViewModal');
+      const cartLink = document.getElementById('cartLink');
+      function animateFlyer(card){
+        if (!card || !cartLink) return;
+        const img = card.querySelector('img');
+        if (!img) return;
+        const clone = img.cloneNode();
+        clone.className = 'flyer-clone';
+        const srcRect = img.getBoundingClientRect();
+        clone.style.left = `${srcRect.left}px`;
+        clone.style.top = `${srcRect.top}px`;
+        clone.style.width = `${srcRect.width}px`;
+        clone.style.height = `${srcRect.height}px`;
+        document.body.appendChild(clone);
+        requestAnimationFrame(() => {
+          const destRect = cartLink.getBoundingClientRect();
+          const translateX = (destRect.left + destRect.width / 2) - (srcRect.left + srcRect.width / 2);
+          const translateY = (destRect.top + destRect.height / 2) - (srcRect.top + srcRect.height / 2);
+          clone.style.transform = `translate(${translateX}px, ${translateY}px) scale(0.25)`;
+          clone.style.opacity = '0';
+        });
+        clone.addEventListener('transitionend', () => clone.remove(), { once: true });
+      }
+      if (!modal) return;
+      const nameEl = modal.querySelector('#quickViewName');
+      const typeEl = modal.querySelector('#quickViewType');
+      const priceEl = modal.querySelector('#quickViewPrice');
+      const descEl = modal.querySelector('#quickViewDescription');
+      const imageEl = modal.querySelector('#quickViewImage');
+      const idInput = modal.querySelector('#quickViewProductId');
+      const qtyInput = modal.querySelector('#quickViewQty');
+      const closeBtn = modal.querySelector('.close-btn');
+      const quickViewForm = modal.querySelector('#quickViewForm');
+      function open(payload){
+        nameEl.textContent = payload.name || 'Item';
+        typeEl.textContent = payload.type || 'Item';
+        priceEl.textContent = '$' + (Number(payload.price) || 0).toFixed(2);
+        descEl.textContent = payload.description || 'Fresh pick for your bowl';
+        imageEl.src = payload.image || imageEl.src;
+        idInput.value = payload.id || '';
+        qtyInput.value = payload.qty && payload.qty > 0 ? payload.qty : 1;
+        modal.dataset.quickViewPrice = Number(payload.price || 0);
+        modal.classList.add('active');
+        modal.setAttribute('aria-hidden','false');
+      }
+      function close(){
+        modal.classList.remove('active');
+        modal.setAttribute('aria-hidden','true');
+      }
+      closeBtn.addEventListener('click', close);
+      modal.addEventListener('click', function(e){
+        if (e.target === modal) close();
+      });
+      document.querySelectorAll('.quick-view').forEach(function(btn){
+        btn.addEventListener('click', function(){
+          let payload = {};
+          try { payload = JSON.parse(this.dataset.product || '{}'); } catch (err) { return; }
+          open(payload);
+        });
+      });
+      if (quickViewForm) {
+        quickViewForm.addEventListener('submit', async function(ev){
+          ev.preventDefault();
+          const formData = new FormData(quickViewForm);
+          const payload = new URLSearchParams();
+          for (const [k, v] of formData.entries()) payload.append(k, v);
+          try {
+            const response = await fetch(quickViewForm.action, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+              body: payload.toString(),
+              credentials: 'same-origin'
+            });
+            if (response.status >= 400) throw new Error('Failed to add');
+            addToLocalCart({
+              product_id: idInput.value || null,
+              name: nameEl.textContent && nameEl.textContent.trim() ? nameEl.textContent.trim() : 'Item',
+              price: Number(modal.dataset.quickViewPrice || 0),
+              qty: Number(qtyInput.value) || 1
+            });
+            toast(`${nameEl.textContent.trim() || 'Item'} added to cart`);
+            close();
+          } catch (error) {
+            console.error('Quick view add error:', error);
+            toast('Unable to add item');
+          }
+        });
+      }
+      document.querySelectorAll('.add-to-cart-form').forEach(function(form){
+        form.addEventListener('submit', async function(ev){
+          ev.preventDefault();
+          const formData = new FormData(form);
+          const payload = new URLSearchParams();
+          for (const [k, v] of formData.entries()) payload.append(k, v);
+          try {
+            const response = await fetch(form.action, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+              body: payload.toString(),
+              credentials: 'same-origin'
+            });
+            if (response.status >= 400) throw new Error('Failed to add item');
+            const card = form.closest('.card');
+            animateFlyer(card);
+            addToLocalCart({
+              product_id: formData.get('product_id') || null,
+              name: form.dataset.productName,
+              price: Number(form.dataset.productPrice || 0),
+              qty: Number(formData.get('qty') || 1)
+            });
+            toast(`${form.dataset.productName || 'Item'} added to cart`);
+          } catch (error) {
+            console.error('Add to cart error:', error);
+            toast('Unable to add item');
+          }
+        });
+      });
+    })();
+  </script>
+</body>
+</html>
+
+
+

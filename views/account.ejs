@@ -1,0 +1,317 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>My Account - Mala Hot Pot Market</title>
+  <style>
+    :root{
+      --primary:#d14343; --primary-ink:#8b1f1f; --ink:#0f172a; --muted:#6b7280;
+      --card:#ffffff; --soft:#f6f7fb; --ring:#e5e7eb; --accent:#fef3f3;
+      --radius:16px; --shadow:0 10px 30px rgba(15,23,42,.08); --space:18px; --max:1160px;
+    }
+    *{box-sizing:border-box}
+    html,body{height:100%}
+    body{
+      margin:0;
+      font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;
+      font-size:18px;
+      line-height:1.6;
+      color:var(--ink);
+      background:linear-gradient(180deg,#fff, #fff 45%, #fdf6f6 100%);
+      -webkit-font-smoothing:antialiased;
+      text-rendering:optimizeLegibility;
+    }
+    a{text-decoration:none;color:var(--primary);}
+    img{max-width:100%;display:block;}
+    .container{max-width:var(--max);margin:0 auto;padding:24px;}
+    .stack{display:flex;flex-direction:column;gap:var(--space);}
+    .grid{display:grid;gap:var(--space);}
+    .grid.cols-1{grid-template-columns:100%;}
+    .grid.cols-2{grid-template-columns:repeat(auto-fit,minmax(280px,1fr));}
+    @media(min-width:900px){.grid.cols-2{grid-template-columns:repeat(2,1fr);}}
+    .navbar{position:sticky;top:0;z-index:20;background:rgba(255,255,255,.9);backdrop-filter:saturate(180%) blur(8px);border-bottom:1px solid var(--ring);}
+    .navwrap{max-width:var(--max);margin:0 auto;display:flex;gap:16px;align-items:center;justify-content:space-between;padding:14px 24px;}
+    .brand{display:flex;align-items:center;gap:10px;font-weight:900;letter-spacing:.3px;color:var(--primary-ink);font-size:1.15rem;}
+    .brand svg{width:28px;height:28px;}
+    .navlinks{display:flex;gap:16px;align-items:center;flex-wrap:wrap;}
+    .navlinks a{color:var(--ink);opacity:.9;font-size:1.05rem;}
+    .hero{margin-top:10px;background:radial-gradient(1200px 600px at 80% -10%, #ffdede 0%, transparent 60%),radial-gradient(900px 500px at -10% 0%, #fff4f4 0%, transparent 55%),linear-gradient(180deg,#fff,#fff 60%,#fff6f6 100%);border:1px solid var(--ring);border-radius:calc(var(--radius)+6px);box-shadow:var(--shadow);padding:clamp(20px,5.2vw,46px);display:grid;gap:24px;}
+    @media(min-width:900px){.hero{grid-template-columns:1.2fr .8fr;align-items:center;}}
+    .hero .eyebrow{text-transform:uppercase;font-size:.85rem;letter-spacing:.3em;margin:0 0 6px 0;color:var(--muted);}
+    .hero h1{margin:0 0 10px 0;font-size:clamp(28px,4vw,44px);line-height:1.1;letter-spacing:.2px;}
+    .hero p{margin:0;color:#404e68;font-size:1.05rem;}
+    .hero-panel{background:var(--card);border:1px solid var(--ring);border-radius:var(--radius);box-shadow:var(--shadow);padding:20px;}
+    .hero-panel-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;}
+    .pill{font-size:.95rem;background:var(--accent);border:1px solid #ffd1d1;color:var(--primary-ink);padding:6px 12px;border-radius:999px;font-weight:700;}
+    .hero-panel-links{margin-top:16px;display:flex;gap:12px;flex-wrap:wrap;}
+    .link-btn{border:1px solid var(--ring);border-radius:12px;padding:10px 14px;font-weight:700;background:#fff;color:var(--primary-ink);box-shadow:0 4px 12px rgba(0,0,0,.04);}
+    .link-btn.ghost{background:#fff4f4;border-color:#facae7;}
+    #admin-profit .profit-value{font-size:clamp(1.8rem,3vw,2.6rem);font-weight:900;color:#b91c1c;}
+    #admin-profit .profit-meta{display:flex;flex-wrap:wrap;gap:12px;font-size:.95rem;color:#475467;}
+    .card{background:var(--card);border:1px solid var(--ring);border-radius:var(--radius);box-shadow:var(--shadow);overflow:hidden;display:flex;flex-direction:column;transition:transform .12s ease,box-shadow .12s ease;}
+    .card:hover{transform:translateY(-2px);box-shadow:0 16px 40px rgba(15,23,42,.12);}
+    .card-body{padding:20px;display:flex;flex-direction:column;gap:12px;}
+    label{font-weight:700;display:block;font-size:1rem;}
+    input,textarea,select{border:1px solid var(--ring);border-radius:12px;padding:12px 14px;font-size:1rem;font-family:inherit;background:#fff;transition:border-color .2s ease,box-shadow .2s ease;}
+    textarea{min-height:100px;resize:vertical;}
+    input:focus,textarea:focus,select:focus{outline:none;border-color:var(--primary);}
+    .form-group{display:flex;flex-direction:column;gap:6px;margin-top:12px;}
+    .form-actions{margin-top:16px;}
+    .btn{padding:12px 16px;border-radius:12px;border:1px solid var(--ring);background:#fff;cursor:pointer;font-weight:800;font-size:1rem;box-shadow:0 6px 16px rgba(15,23,42,.08);}
+    .btn.primary{background:var(--primary);border-color:var(--primary);color:#fff;}
+    .note{color:var(--muted);font-size:.95rem;margin:0;}
+    .alert{border-radius:12px;padding:12px 16px;font-weight:700;display:block;}
+    .alert.ok{background:#ecfdf5;border:1px solid #a7f3d0;color:#065f46;}
+    .alert.err{background:#fff1f2;border:1px solid #fecdd3;color:#991b1b;}
+    .avatar-stack{display:flex;gap:12px;align-items:center;margin-top:12px;}
+    .avatar-circle{width:56px;height:56px;border-radius:50%;overflow:hidden;border:1px solid var(--ring);background:#fff;display:flex;align-items:center;justify-content:center;font-weight:800;color:#8b1f1f;font-size:1.1rem;}
+    .avatar-circle img{width:100%;height:100%;object-fit:cover;}
+    .user-pill-wrapper{position:relative;}
+    .user-pill{border:none;background:#ffe6e6;color:var(--primary-ink);padding:8px 16px;border-radius:999px;font-weight:800;cursor:pointer;font-size:1rem;box-shadow:0 6px 16px rgba(15,23,42,.12);}
+    .user-menu{position:absolute;right:0;top:calc(100% + 6px);background:#fff;border:1px solid var(--ring);border-radius:12px;box-shadow:var(--shadow);padding:8px;display:none;min-width:200px;z-index:90;}
+    .user-menu.is-visible{display:block;}
+    .user-menu a{display:block;padding:8px 12px;border-radius:8px;color:#5b21b6;font-weight:600;}
+    .user-menu a:hover{background:#f4f1ff;}
+    .member-pill{display:flex;align-items:center;gap:6px;font-size:.95rem;padding:6px 12px;border-radius:999px;background:linear-gradient(180deg,#fff,#ffe6e6);border:1px solid #ffd1d1;font-weight:700;}
+  </style>
+</head>
+<body>
+  <header class="navbar">
+    <div class="navwrap">
+      <div class="brand">
+        <svg viewBox="0 0 24 24" fill="none">
+          <path d="M6 12c3.5-3.5 6-2 10-6 1.6-1.6 3-1.5 3 0 0 2-2 4-3 5-5 5-7 8-11 8-2.5 0-3.5-1.5-3-3 1-3 2-3 4-4z" stroke="#d14343" stroke-width="1.5" fill="#ffdddd"/>
+          <path d="M15 6c0-2 1-3 3-3" stroke="#8b1f1f" stroke-width="1.5" stroke-linecap="round"/>
+        </svg>
+        <span>Mala Hot Pot Market</span>
+      </div>
+      <nav class="navlinks">
+        <% const showCustomerLinks = !user || user.role !== 'admin'; %>
+        <a href="/">Home</a>
+        <a href="/menu">Menu</a>
+        <% if (showCustomerLinks) { %>
+          <a href="/cart">Cart</a>
+          <a href="/membership">Membership</a>
+        <% } %>
+        <% if (user && user.role !== 'admin') { %>
+          <a href="/orders">My Orders</a>
+        <% } %>
+        <% if (user && user.role === 'admin') { %>
+          <a href="/admin">Admin</a>
+        <% } %>
+      </nav>
+      <% const roleLabelFor = (entity) => {
+        if (!entity) return 'Guest';
+        if (entity.role === 'admin') return 'Admin';
+        return entity.is_member ? 'Member' : 'User';
+      }; %>
+      <% const heroRoleLabel = profile ? roleLabelFor(profile) : roleLabelFor(user); %>
+      <% const isAdminAccount = (user && user.role === 'admin'); %>
+      <div class="user-pill-wrapper">
+        <button class="user-pill" id="user-pill" type="button">
+          <span><%= roleLabelFor(user) %></span>
+        </button>
+        <div id="user-menu" class="user-menu">
+          <% if (user) { %>
+            <% if (user.role === 'admin') { %>
+              <a href="/account">My Profit</a>
+            <% } else { %>
+              <a href="/account">My Profile</a>
+              <a href="/orders">My Orders</a>
+              <a href="/membership">Membership</a>
+            <% } %>
+            <a href="/logout">Logout</a>
+          <% } else { %>
+            <a href="/login">Login</a>
+            <a href="/register">Register</a>
+          <% } %>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <main class="container stack">
+    <section class="hero">
+      <div>
+        <p class="eyebrow">Account</p>
+        <h1>Manage your profile</h1>
+        <p>Keep contact information, security, and membership perks aligned in one streamlined view.</p>
+      </div>
+      <div class="hero-panel">
+        <div class="hero-panel-header">
+          <strong><%= profile ? profile.name : (user ? user.name : 'Guest') %></strong>
+          <span class="pill"><%= heroRoleLabel %></span>
+        </div>
+        <p class="note">Signed in as <strong><%= profile && profile.email ? profile.email : user ? user.name : 'you' %></strong>.</p>
+        <% if (!isAdminAccount) { %>
+          <div class="hero-panel-links">
+            <a class="link-btn" href="/orders">My Orders</a>
+            <a class="link-btn ghost" href="/membership">Membership</a>
+          </div>
+        <% } %>
+      </div>
+    </section>
+
+    <% if (isAdminAccount && adminProfit) { %>
+      <section class="grid cols-1" id="admin-profit">
+        <div class="card">
+          <div class="card-body">
+            <h2>My Profit</h2>
+            <p class="note">Gross sales inside <strong><%= adminProfit.rangeLabel %></strong>.</p>
+            <div class="profit-value"><%= adminProfit.formattedGross %></div>
+            <div class="profit-meta">
+              <span>Orders: <%= adminProfit.summary.orders %></span>
+              <span>Average order: <%= adminProfit.formattedAvg %></span>
+            </div>
+            <a class="link-btn ghost" href="/admin/reports">View reports</a>
+          </div>
+        </div>
+      </section>
+    <% } %>
+
+    <% if (saved || changed || error) { %>
+      <section class="stack" style="gap:8px">
+        <% if (saved) { %><div class="alert ok">Profile saved.</div><% } %>
+        <% if (changed) { %><div class="alert ok">Password updated.</div><% } %>
+        <% if (error) { %><div class="alert err"><%= error %></div><% } %>
+      </section>
+    <% } %>
+
+    <section class="grid cols-2 form-grid">
+      <form class="card" method="post" action="/account">
+        <div class="card-body">
+          <h2>Profile</h2>
+          <div class="avatar-stack">
+            <div class="avatar-circle">
+              <% if (profile && profile.avatar_url) { %>
+                <img src="<%= profile.avatar_url %>" alt="avatar" />
+              <% } else { %>
+                <span>U</span>
+              <% } %>
+            </div>
+            <div>
+              <p class="note">Update your name and contact information.</p>
+              <p class="note">Use the avatar uploader to refresh your picture.</p>
+            </div>
+          </div>
+          <div class="form-group">
+            <label for="name">Name</label>
+            <input id="name" name="name" value="<%= profile ? profile.name : '' %>" required />
+          </div>
+          <div class="form-group">
+            <label for="email">Email</label>
+            <input id="email" name="email" required value="<%= profile && profile.email ? profile.email : '' %>" />
+          </div>
+          <div class="form-group">
+            <label for="address">Address</label>
+            <textarea id="address" name="address"><%= profile && profile.address ? profile.address : '' %></textarea>
+          </div>
+          <div class="form-group">
+            <label for="contact_number">Contact Number</label>
+            <input id="contact_number" name="contact_number" value="<%= profile && profile.contact_number ? profile.contact_number : '' %>" />
+          </div>
+          <div class="form-actions">
+            <button class="btn primary" type="submit">Save Profile</button>
+          </div>
+        </div>
+      </form>
+
+      <div class="stack" style="gap:12px;">
+        <form class="card" method="post" action="/account/avatar" enctype="multipart/form-data">
+          <div class="card-body">
+            <h2>Update Avatar</h2>
+            <p class="note">Recommended size: 120x120px.</p>
+            <div class="form-group">
+              <input type="file" name="avatar" accept="image/*" required />
+            </div>
+            <div class="form-actions">
+              <button class="btn" type="submit">Upload</button>
+            </div>
+          </div>
+        </form>
+
+        <form class="card" method="post" action="/account">
+          <div class="card-body">
+            <h2>Change Password</h2>
+            <p class="note">Minimum 6 characters.</p>
+            <div class="form-group">
+              <label for="new_password">New Password</label>
+              <input id="new_password" name="new_password" type="password" />
+            </div>
+            <div class="form-group">
+              <label for="confirm_password">Confirm Password</label>
+              <input id="confirm_password" name="confirm_password" type="password" />
+            </div>
+            <% if (mfa && mfa.mfa_totp_enabled) { %>
+              <div class="form-group">
+                <label for="totp_code2">Authenticator Code</label>
+                <input id="totp_code2" name="totp_code" placeholder="6-digit code" inputmode="numeric" pattern="[0-9]{6}">
+              </div>
+            <% } %>
+            <div class="form-actions">
+              <button class="btn primary" type="submit">Update Password</button>
+            </div>
+          </div>
+        </form>
+      </div>
+    </section>
+
+    <% if (!isAdminAccount) { %>
+    <section class="grid cols-2 form-grid">
+      <div class="stack" style="gap:12px;">
+        <div class="card">
+          <div class="card-body">
+            <h2>Membership</h2>
+            <% if (profile && profile.is_member) { %>
+              <p class="note">Member since: <strong><%= profile.member_since || '-' %></strong></p>
+              <p class="note">Expires: <strong><%= profile.member_expires || '-' %></strong></p>
+            <% } else { %>
+              <p class="note">You are not a member yet. <a href="/membership">Join membership</a> for 5% cash back.</p>
+            <% } %>
+          </div>
+        </div>
+
+        <form class="card" method="post" action="/account/payment">
+          <div class="card-body">
+            <h2>Payment Preference</h2>
+            <p class="note">This preference is used for checkout hints.</p>
+            <div class="form-group">
+              <label for="payment_type">Payment Type</label>
+              <% const pref = profile && profile.payment_type ? profile.payment_type : (user && user.payment_type ? user.payment_type : null); %>
+              <select id="payment_type" name="payment_type">
+                <option value="">No preference</option>
+                <option <%= pref==='Visa'?'selected':'' %>>Visa</option>
+                <option <%= pref==='Mastercard'?'selected':'' %>>Mastercard</option>
+                <option <%= pref==='PayNow'?'selected':'' %>>PayNow</option>
+                <option <%= pref==='Cash on Delivery'?'selected':'' %>>Cash on Delivery</option>
+              </select>
+            </div>
+            <div class="form-actions">
+              <button class="btn" type="submit">Save Preference</button>
+            </div>
+          </div>
+        </form>
+        </div>
+      </section>
+    <% } %>
+  </main>
+
+  <script>
+    (function(){
+      const pill = document.getElementById('user-pill');
+      const menu = document.getElementById('user-menu');
+      if (!pill || !menu) return;
+      pill.addEventListener('click', function(ev){
+        ev.preventDefault();
+        menu.classList.toggle('is-visible');
+      });
+      document.addEventListener('click', function(ev){
+        if (!menu.contains(ev.target) && !pill.contains(ev.target)) {
+          menu.classList.remove('is-visible');
+        }
+      });
+    })();
+  </script>
+</body>
+</html>

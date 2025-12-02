@@ -1,0 +1,151 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Admin - Reports</title>
+<style>
+  :root{ --primary:#d14343; --primary-ink:#8b1f1f; --ink:#0f172a; --muted:#6b7280; --card:#ffffff; --soft:#f6f7fb; --ring:#e5e7eb; --accent:#fef3f3; --radius:16px; --shadow:0 10px 30px rgba(15,23,42,.08); --space:18px; --max:1160px }
+  *{box-sizing:border-box} html,body{height:100%}
+  body{margin:0;font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;font-size:18px;color:var(--ink);background:linear-gradient(180deg,#fff, #fff 45%, #fdf6f6 100%)}
+  a{color:var(--primary);text-decoration:none}
+  .container{max-width:var(--max);margin:0 auto;padding:24px}
+  .row{display:flex;gap:12px;flex-wrap:wrap;align-items:center}
+  .grid{display:grid;gap:12px} @media(min-width:900px){.grid.cols-3{grid-template-columns:repeat(3,1fr)}}
+  .navbar{position:sticky;top:0;z-index:20;background:rgba(255,255,255,.9);backdrop-filter:saturate(180%) blur(8px);border-bottom:1px solid var(--ring)}
+  .navwrap{max-width:var(--max);margin:0 auto;display:flex;gap:16px;align-items:center;justify-content:space-between;padding:14px 24px}
+  .brand{display:flex;align-items:center;gap:10px;font-weight:900;letter-spacing:.3px;color:var(--primary-ink); font-size:1.15rem}
+  .brand svg{width:28px;height:28px}
+  .navlinks{display:flex;gap:16px;align-items:center;flex-wrap:wrap}
+  .navlinks a{color:var(--ink);opacity:.9; font-size:1.05rem}
+  .badge{padding:7px 14px;border-radius:999px;background:#ffe6e6;color:#8b1f1f;font-weight:800;border:1px solid #ffd1d1}
+  .user-pill{border:none;background:#ffe6e6;color:#8b1f1f;padding:6px 14px;border-radius:999px;font-weight:800;cursor:pointer;font-size:1rem;display:flex;align-items:center;gap:8px;box-shadow:0 6px 16px rgba(15,23,42,.12);}
+  .user-pill img{width:28px;height:28px;border-radius:50%;object-fit:cover;border:1px solid #f7caca;background:#fff;}
+  .user-menu{position:absolute;right:0;top:46px;background:#fff;border:1px solid var(--ring);border-radius:12px;box-shadow:0 16px 40px rgba(15,23,42,.25);padding:10px;min-width:220px;display:none;z-index:50;}
+  .user-menu.is-visible{display:block;}
+  .user-menu .entry{display:flex;align-items:center;gap:10px;margin-bottom:10px;}
+  .user-menu .entry strong{font-size:1rem;}
+  .user-menu .entry span{color:#64748b;font-size:.9rem;}
+  .user-menu a{display:block;padding:10px 14px;border-radius:10px;font-weight:700;color:#b91c1c;border:1px solid transparent;}
+  .user-menu a:hover{background:#fef3f3;border-color:#f3c4c4;}
+  .pill{font-size:.95rem;background:var(--accent);border:1px solid #ffd1d1;color:var(--primary-ink);padding:6px 10px;border-radius:999px}
+  .card{background:#fff;border:1px solid var(--ring);border-radius:16px;box-shadow:var(--shadow)} .card-body{padding:16px}
+  .btn{padding:10px 14px;border-radius:12px;border:1px solid var(--ring);background:#fff;cursor:pointer;font-weight:800}
+  .input{border:1px solid var(--ring);border-radius:12px;padding:10px 12px}
+  table{width:100%;border-collapse:collapse}th,td{padding:12px 14px;border-bottom:1px solid var(--ring);text-align:left}
+</style></head>
+<body>
+<header class="navbar" role="navigation" aria-label="Primary">
+  <div class="navwrap">
+    <div class="brand" aria-label="Mala Hot Pot Market">
+      <svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M6 12c3.5-3.5 6-2 10-6 1.6-1.6 3-1.5 3 0 0 2-2 4-3 5-5 5-7 8-11 8-2.5 0-3.5-1.5-3-3 1-3 2-3 4-4z" stroke="#d14343" stroke-width="1.5" fill="#ffdddd"/><path d="M15 6c0-2 1-3 3-3" stroke="#8b1f1f" stroke-width="1.5" stroke-linecap="round"/></svg>
+      <span>Mala Hot Pot Market</span>
+    </div>
+    <nav class="navlinks" aria-label="Admin">
+  <a href="/">Home</a>
+  <a href="/admin">Store</a>
+  <a href="/admin/products">Product Update</a>
+  <a href="/admin/users">User &amp; Member</a>
+  <a href="/admin/orders">Orders</a>
+  <a href="/admin/reports">Reports</a>
+</nav>
+    <div style="position:relative">
+      <button class="user-pill" id="avatarBtn" type="button">
+        <% if (user && user.avatar_url) { %>
+          <img src="<%= user.avatar_url %>" alt="avatar" />
+        <% } else { %>
+          <span style="width:28px;height:28px;border-radius:50%;display:flex;align-items:center;justify-content:center;background:#fff;border:1px solid #f7caca;font-weight:800;color:#8b1f1f;font-size:.85rem;">A</span>
+        <% } %>
+        <span>Admin</span>
+      </button>
+      <div id="userMenu" class="user-menu" aria-live="polite">
+        <div class="entry">
+          <% if (user && user.avatar_url) { %>
+            <img src="<%= user.avatar_url %>" alt="avatar" width="32" height="32" />
+          <% } else { %>
+            <span style="width:32px;height:32px;border-radius:50%;display:flex;align-items:center;justify-content:center;background:#ffe6e6;font-weight:800;color:#8b1f1f;">A</span>
+          <% } %>
+          <div>
+            <strong><%= user ? user.name : 'Admin' %></strong>
+            <span><%= user ? user.role : 'Admin' %></span>
+          </div>
+        </div>
+        <a href="/account">My Profit</a>
+        <a href="/logout">Logout</a>
+      </div>
+    </div>
+  </div>
+</header>
+<script>
+  (function(){
+    const pill = document.getElementById('avatarBtn');
+    const menu = document.getElementById('userMenu');
+    if (!pill || !menu) return;
+    pill.addEventListener('click', function(ev){
+      ev.preventDefault();
+      menu.classList.toggle('is-visible');
+    });
+    document.addEventListener('click', function(ev){
+      if (!menu.contains(ev.target) && !pill.contains(ev.target)) {
+        menu.classList.remove('is-visible');
+      }
+    });
+  })();
+</script>
+<main class="container">
+  <h1 style="margin:8px 0 8px 0">Sales &amp; Membership Reports</h1>
+  <form class="row" method="get" action="/admin/reports">
+    <label>From</label><input class="input" type="datetime-local" name="from" value="<%= range.from.replace(' ','T') %>">
+    <label>To</label><input class="input" type="datetime-local" name="to" value="<%= range.to.replace(' ','T') %>">
+    <button class="btn" type="submit">Apply</button>
+    <div style="flex:1"></div>
+    <button class="btn" type="button" disabled>Export CSV</button>
+  </form>
+
+  <section class="grid cols-3" style="margin-top:12px">
+    <div class="card"><div class="card-body"><div>Gross Sales</div><div style="font-weight:900;font-size:1.6rem">$<%= Number(summary.gross).toFixed(2) %></div></div></div>
+    <div class="card"><div class="card-body"><div>Orders</div><div style="font-weight:900;font-size:1.6rem"><%= summary.orders %></div></div></div>
+    <div class="card"><div class="card-body"><div>Avg Order Value</div><div style="font-weight:900;font-size:1.6rem">$<%= Number(summary.avg).toFixed(2) %></div></div></div>
+  </section>
+
+  <section class="grid" style="grid-template-columns:1.5fr 1fr; margin-top:12px">
+    <div class="card"><div class="card-body"><strong>Sales by Day</strong>
+      <table style="margin-top:8px"><thead><tr><th>Date</th><th>Orders</th><th>Sales</th></tr></thead><tbody>
+      <% if (byDay && byDay.length) { byDay.forEach(function(r){ %>
+        <tr><td><%= r.d.toISOString ? r.d.toISOString().slice(0,10) : r.d %></td><td><%= r.orders %></td><td>$<%= Number(r.sales).toFixed(2) %></td></tr>
+      <% }) } else { %>
+        <tr><td colspan="3" style="color:#6b7280">No data</td></tr>
+      <% } %>
+      </tbody></table>
+    </div></div>
+    <div class="card"><div class="card-body"><strong>Sales by Status</strong>
+      <table style="margin-top:8px"><thead><tr><th>Status</th><th>Orders</th><th>Sales</th></tr></thead><tbody>
+      <% if (byStatus && byStatus.length) { byStatus.forEach(function(r){ %>
+        <tr><td><%= r.status %></td><td><%= r.orders %></td><td>$<%= Number(r.sales).toFixed(2) %></td></tr>
+      <% }) } else { %>
+        <tr><td colspan="3" style="color:#6b7280">No data</td></tr>
+      <% } %>
+      </tbody></table>
+    </div></div>
+  </section>
+
+  <section class="grid" style="grid-template-columns:1fr 1fr; margin-top:12px">
+    <div class="card"><div class="card-body"><strong>Top Products</strong>
+      <table style="margin-top:8px"><thead><tr><th>Product</th><th>Qty</th><th>Sales</th></tr></thead><tbody>
+      <% if (top && top.length) { top.forEach(function(r){ %>
+        <tr><td><%= r.name %></td><td><%= r.qty %></td><td>$<%= Number(r.sales).toFixed(2) %></td></tr>
+      <% }) } else { %>
+        <tr><td colspan="3" style="color:#6b7280">No data</td></tr>
+      <% } %>
+      </tbody></table>
+    </div></div>
+    <div class="card"><div class="card-body"><strong>Membership Summary</strong>
+      <div style="margin-top:8px">Active Members <strong><%= membership.active %></strong></div>
+      <div>Expiring in 14 days <strong><%= membership.expiring14 %></strong></div>
+      <table style="margin-top:8px"><thead><tr><th>Plan</th><th>Members</th></tr></thead><tbody>
+      <% if (membership.byPlan && membership.byPlan.length) { membership.byPlan.forEach(function(r){ %>
+        <tr><td><%= r.name %></td><td><%= r.c %></td></tr>
+      <% }) } else { %>
+        <tr><td colspan="2" style="color:#6b7280">No data</td></tr>
+      <% } %>
+      </tbody></table>
+    </div></div>
+  </section>
+</main>
+</body></html>

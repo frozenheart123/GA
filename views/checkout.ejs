@@ -1,0 +1,29 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>PayNow Checkout</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+</head>
+<body class="bg-light">
+  <div class="container py-5">
+    <div class="row justify-content-center">
+      <div class="col-md-6">
+        <div class="card shadow-sm">
+          <div class="card-body text-center">
+            <h2 class="card-title">Checkout</h2>
+            <p class="lead">Amount to pay: <strong>S$<%= amount %></strong></p>
+            <p>Reference: <strong><%= reference %></strong></p>
+            <div class="my-4">
+              <img src="<%= paynowQr %>" alt="PayNow QR" class="img-fluid border rounded">
+            </div>
+            <p class="text-muted">Scan the QR code with your PayNow mobile app (POSB/DBS). Amount is pre-filled and not editable.</p>
+            <a href="/cart" class="btn btn-outline-secondary mt-3">Back to Cart</a>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</body>
+</html>
