@@ -139,18 +139,13 @@ app.post('/login', authController.postLogin);
 app.get('/logout', authController.logout);
 
 // Cart (no client JS)
-app.get('/cart', cartController.show);
-app.post('/cart/add', cartController.add);
-app.post('/cart/update', cartController.update);
-app.post('/cart/remove', cartController.remove);
-app.post('/cart/clear', cartController.clear);
-const { ensureCart } = cartController;
-function computeCartTotals(cart, isMember) {
-  const subtotal = cart.reduce((sum, item) => sum + Number(item.price || 0) * Number(item.qty || 0), 0);
-  const cashback = isMember ? subtotal * 0.05 : 0;
-  const total = subtotal - cashback;
-  return { subtotal, cashback, total };
-}
+app.get('/cart', cartController.list);
+app.post('/cart/add', cartController.addToCart);
+app.post('/cart/update', cartController.decreaseByOne);
+app.post('/cart/remove', cartController.removeFromCart);
+app.post('/cart/clear', cartController.clearCart);
+const { ensureCart, computeCartTotals } = cartController;
+
 
 app.get('/checkout', paymentController.generatePayNowCheckout);
 
