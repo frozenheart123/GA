@@ -19,6 +19,7 @@ const paymentController = require('./controllers/paymentController');
 const ordersController = require('./Controller/ordersController');
 const accountController = require('./Controller/accountController');
 const UserModel = require('./models/user');
+const cartitems = require('./models/cartitems');
 const speakeasy = require('speakeasy');
 const QRCode = require('qrcode');
 const mfaUtil = require('./utils/mfa');
@@ -141,7 +142,8 @@ app.get('/logout', authController.logout);
 // Cart (no client JS)
 app.get('/cart', cartController.list);
 app.post('/cart/add', cartController.addToCart);
-app.post('/cart/update', cartController.decreaseByOne);
+app.post('/cart/decrease/:id', cartController.decreaseByOne);
+app.post('/cart/delete/:id', cartController.removeFromCart);
 app.post('/cart/remove', cartController.removeFromCart);
 app.post('/cart/clear', cartController.clearCart);
 const { ensureCart, computeCartTotals } = cartController;
