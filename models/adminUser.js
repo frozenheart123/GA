@@ -18,7 +18,7 @@ exports.counts = () => {
       out.total = r && r[0] ? r[0].c : 0;
       db.query("SELECT COUNT(*) AS c FROM users WHERE role = 'admin'", (e2, r2) => {
         out.admins = r2 && r2[0] ? r2[0].c : 0;
-        db.query('SELECT COUNT(*) AS c FROM users WHERE is_member = 1', (e3, r3) => {
+        db.query('SELECT COUNT(*) AS c FROM users WHERE is_member = 1 AND (member_expires IS NULL OR member_expires >= CURDATE())', (e3, r3) => {
           out.activeMembers = r3 && r3[0] ? r3[0].c : 0;
           resolve(out);
         });
@@ -29,16 +29,21 @@ exports.counts = () => {
 
 exports.list = ({ q, role, membership } = {}) => {
   return new Promise((resolve, reject) => {
+    const activeMemberExpr = '(CASE WHEN member_expires IS NOT NULL AND member_expires < CURDATE() THEN 0 ELSE is_member END)';
     const where = [];
     const params = [];
     if (q) { where.push('name LIKE ?'); params.push(`%${q}%`); }
     if (role && role !== 'All') { where.push('role = ?'); params.push(role); }
     if (membership && membership !== 'All') {
-      where.push('is_member = ?'); params.push(membership === 'Member' ? 1 : 0);
+      where.push(`${activeMemberExpr} = ?`); params.push(membership === 'Member' ? 1 : 0);
     }
-    const sql = `SELECT user_id, name, role, is_member, member_expires FROM users
+    const sql = `SELECT user_id, name, role, is_member, member_expires,
+                        ${activeMemberExpr} AS is_member_active,
+                        (member_expires IS NOT NULL AND member_expires < CURDATE()) AS is_expired,
+                        DATE_FORMAT(member_expires, '%Y-%m-%d') AS member_expires_fmt
+                 FROM users
                  ${where.length ? 'WHERE ' + where.join(' AND ') : ''}
-                 ORDER BY user_id DESC`;
+                 ORDER BY (role='admin') DESC, user_id DESC`;
     db.query(sql, params, (err, rows) => {
       if (err) return reject(err);
       resolve(rows || []);

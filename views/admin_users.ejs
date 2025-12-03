@@ -28,7 +28,11 @@
   .card{background:#fff;border:1px solid var(--ring);border-radius:16px;box-shadow:var(--shadow)} .card-body{padding:16px}
   .btn{padding:10px 14px;border-radius:12px;border:1px solid var(--ring);background:#fff;cursor:pointer;font-weight:800}
   .input{border:1px solid var(--ring);border-radius:12px;padding:10px 12px}
-  table{width:100%;border-collapse:collapse}th,td{padding:12px 14px;border-bottom:1px solid var(--ring);text-align:left}
+  table{width:100%;border-collapse:collapse}th,td{padding:12px 14px;border-bottom:1px solid var(--ring);text-align:left;vertical-align:middle}
+  .card-filter{display:flex;gap:12px;flex-wrap:wrap;align-items:center}
+  .card-filter .input,.card-filter .btn{height:46px;display:flex;align-items:center}
+  .table-actions{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
+  .table-actions form{margin:0}
 </style></head>
 <body>
 <header class="navbar" role="navigation" aria-label="Primary">
@@ -101,7 +105,7 @@
 
   <section class="card" style="margin-top:16px">
     <div class="card-body">
-      <form class="row" method="get" action="/admin/users">
+      <form class="card-filter" method="get" action="/admin/users">
         <input class="input" type="text" name="q" placeholder="Search by name..." value="<%= q %>">
         <select name="role" class="input">
           <option <%= role==='All'?'selected':'' %>>All</option>
@@ -127,13 +131,23 @@
             <tr>
               <td><%= u.name %></td>
               <td><span class="badge" style="background:#fee2e2;border:1px solid #fecaca;color:#991b1b"><%= u.role %></span></td>
-              <td><span class="badge" style="background:#f1f5f9;border:1px solid #e2e8f0;color:#0f172a"><%= u.is_member? 'Member':'User' %></span></td>
-              <td><%= u.member_expires || '-' %></td>
-              <td class="row">
-                <a class="btn" href="/admin/users/<%= u.user_id %>/edit">Edit</a>
-                <form method="post" action="/admin/users/<%= u.user_id %>/member" style="display:inline-block"><button class="btn" type="submit">Make Member</button></form>
-                <form method="post" action="/admin/users/<%= u.user_id %>/member/clear" style="display:inline-block"><button class="btn" type="submit">Remove Member</button></form>
-                <form method="post" action="/admin/users/<%= u.user_id %>/resetpw" style="display:inline-block"><button class="btn" type="submit">Reset PW</button></form>
+              <td>
+                <% if (u.is_expired) { %>
+                  <span class="badge" style="background:#fff1f2;border:1px solid #fecdd3;color:#b91c1c">Expired</span>
+                <% } else if (u.is_member_active) { %>
+                  <span class="badge" style="background:#f1f5f9;border:1px solid #e2e8f0;color:#0f172a">Member</span>
+                <% } else { %>
+                  <span class="badge" style="background:#eef2ff;border:1px solid #e0e7ff;color:#312e81">User</span>
+                <% } %>
+              </td>
+              <td><%= u.member_expires ? (u.member_expires_fmt || u.member_expires) : '-' %></td>
+              <td>
+                <div class="table-actions">
+                  <a class="btn" href="/admin/users/<%= u.user_id %>/edit">Edit</a>
+                  <form method="post" action="/admin/users/<%= u.user_id %>/member"><button class="btn" type="submit">Make Member</button></form>
+                  <form method="post" action="/admin/users/<%= u.user_id %>/member/clear"><button class="btn" type="submit">Remove Member</button></form>
+                  <form method="post" action="/admin/users/<%= u.user_id %>/resetpw"><button class="btn" type="submit">Reset PW</button></form>
+                </div>
               </td>
             </tr>
           <% }) %>
