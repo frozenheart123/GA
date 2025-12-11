@@ -1,270 +1,109 @@
-const Product = require('../models/product');
-const User = require('../models/user');
-const cartitems = require('../models/cartitems');
+const db = require('../db');
 
-// Using `Product` model directly (promise-based)
-
-const CartController = {
-    // List cart (DB-backed)
-    list: function (req, res) {
-      const user = req.session && req.session.user;
-      if (!user) {
-        req.flash && req.flash('error', 'Please log in to view your cart.');
-        return res.redirect('/login');
-      }
-
-      const userId = (user.user_id || user.userId || user.id);
-      cartitems.getByUserId(userId, (err, rows) => {
-        if (err) {
-          console.error('cartitems.getByUserId error:', err);
-          req.flash && req.flash('error', 'Unable to load cart.');
-          return res.redirect('/menu');
-        }
-
-        if (!rows || !rows.length) return res.render('cart', { user, cart: [], totalQty: 0, totalPrice: 0 });
-
-        const cart = [];
-        let totalQty = 0;
-        let totalPrice = 0;
-        let remaining = rows.length;
-
-        rows.forEach(row => {
-          Product.getById(row.productId).then((product) => {
-            if (Array.isArray(product)) product = product[0];
-            const item = {
-              productId: String(row.productId),
-              productName: product ? (product.productName || product.name) : 'Unknown',
-              price: Number(product ? (product.price || 0) : 0),
-              image: product ? product.image : null,
-              quantity: Number(row.quantity || 0)
-            };
-            cart.push(item);
-            totalQty += item.quantity;
-            totalPrice += item.price * item.quantity;
-            remaining -= 1;
-            if (remaining === 0) return res.render('cart', { user, cart, totalQty, totalPrice });
-          }).catch(err2 => {
-            console.error('getProductById error in cart list:', err2);
-            // still count this item as unknown product
-            const item = {
-              productId: String(row.productId),
-              productName: 'Unknown',
-              price: 0,
-              image: null,
-              quantity: Number(row.quantity || 0)
-            };
-            cart.push(item);
-            totalQty += item.quantity;
-            totalPrice += item.price * item.quantity;
-            remaining -= 1;
-            if (remaining === 0) return res.render('cart', { user, cart, totalQty, totalPrice });
-          });
-        });
-      });
+const cartitems = {
+    // Return cart rows with productId alias and price/total
+    getByUserId(userId, callback) {
+        if (userId == null) return callback(null, []);
+        const sql = 'SELECT cart_item_id AS id, user_id AS userid, product_id AS productId, quantity, price, (price * quantity) AS total FROM user_cart_items WHERE user_id = ?';
+        db.query(sql, [userId], callback);
     },
-  // Add product to user's cart
-  addToCart: function (req, res) {
 
-    const user = req.session && req.session.user;
-    if (!user) {
-        req.flash && req.flash('error', 'Please log in to add items to cart.');
-        return res.redirect('/login');
-    }
+    // Get a single cart item for a user and product
+    getItem(userId, productId, callback) {
+        if (userId == null || productId == null) return callback(null, null);
+        const sql = 'SELECT cart_item_id AS id, user_id AS userid, product_id AS productId, quantity, price, (price * quantity) AS total FROM user_cart_items WHERE user_id = ? AND product_id = ? LIMIT 1';
+        db.query(sql, [userId, productId], function(err, rows) {
+            if (err) return callback(err);
+            return callback(null, rows && rows.length ? rows[0] : null);
+        });
+    },
 
-    const productId = req.body.productId || req.body.product_id || req.params.id;
-    const qty = Number(req.body.quantity || req.body.qty || 1);
-    if (!productId) {
-        req.flash && req.flash('error', 'No product specified.');
-        // safe redirect: use referrer header or fallback to shopping page
-        return res.redirect(req.get('Referrer') || req.get('Referer') || '/menu');
-    }
+    // Add quantity (or insert). Accept `price` per unit so we can compute `total`.
+    addToCart(userId, productId, quantity, price, callback) {
+        if (userId == null) return callback(new Error('Missing userId for cart add'));
+        if (productId == null) return callback(new Error('Missing productId for cart add'));
+        const qty = Number(quantity || 0);
+        const unitPrice = Number(price || 0);
+        const selectSql = 'SELECT cart_item_id AS id, quantity FROM user_cart_items WHERE user_id = ? AND product_id = ?';
+        db.query(selectSql, [userId, productId], (err, rows) => {
+            if (err) return callback(err);
+            if (rows && rows.length) {
+                const existing = rows[0];
+                const newQty = Number(existing.quantity || 0) + qty;
+                const newTotal = newQty * unitPrice;
+                db.query('UPDATE user_cart_items SET quantity = ?, price = ?, total = ? WHERE cart_item_id = ?', [newQty, unitPrice, newTotal, existing.id], callback);
+            } else {
+                const total = qty * unitPrice;
+                db.query('INSERT INTO user_cart_items (user_id, product_id, quantity, price, total) VALUES (?, ?, ?, ?, ?)', [userId, productId, qty, unitPrice, total], callback);
+            }
+        });
+    },
 
-    Product.getById(productId).then(function (product) {
-      // handle model returning array or single object (compat)
-      if (Array.isArray(product)) product = product[0];
-      if (!product) {
-        req.flash && req.flash('error', 'Product not found.');
-        return res.redirect(req.get('Referrer') || req.get('Referer') || '/menu');
-      }
+    // Backwards-compatible alias: some controllers call `add`
+    add(userId, productId, quantity, price, callback) {
+        return this.addToCart(userId, productId, quantity, price, callback);
+    },
 
-      const userId = (req.session.user && (req.session.user.user_id || req.session.user.userId || req.session.user.id));
-      if (!userId) {
-        console.error('addToCart: session user exists but user id missing on session.user:', req.session.user);
-        req.flash && req.flash('error', 'Your session is not linked to an account. Please log out and log in again.');
-        return res.redirect(req.get('Referrer') || req.get('Referer') || '/menu');
-      }
-      const unitPrice = product && (product.price || 0);
-      const qtyRequested = qty || 1;
+    // Remove the row entirely
+    remove(userId, productId, callback) {
+        if (userId == null) return callback(new Error('Missing userId for cart remove'));
+        if (productId == null) return callback(new Error('Missing productId for cart remove'));
+        db.query('DELETE FROM user_cart_items WHERE user_id = ? AND product_id = ?', [userId, productId], callback);
+    },
 
-      // Add to DB-backed cart
-      cartitems.addToCart(userId, productId, qtyRequested, unitPrice, function (errAdd) {
-        if (errAdd) {
-          console.error('cartitems.addToCart error:', errAdd);
-          req.flash && req.flash('error', 'Unable to add product to cart.');
-          return res.redirect(req.get('Referrer') || req.get('Referer') || '/menu');
+    // Remove multiple productids for a user
+    removeBulk(userId, productIds, callback) {
+        if (userId == null) return callback(new Error('Missing userId for cart bulk remove'));
+        if (!productIds || !productIds.length) return callback(null);
+        const placeholders = productIds.map(() => '?').join(',');
+        const sql = `DELETE FROM user_cart_items WHERE user_id = ? AND product_id IN (${placeholders})`;
+        db.query(sql, [userId, ...productIds], callback);
+    },
+
+    // Decrement quantity by `amount`. Read current qty first, delete when <= 0.
+    decrement(userId, productId, amount, callback) {
+        if (userId == null) return callback(new Error('Missing userId for cart decrement'));
+        if (productId == null) return callback(new Error('Missing productId for cart decrement'));
+        const amt = Number(amount || 1);
+        const sel = 'SELECT cart_item_id AS id, quantity, price FROM user_cart_items WHERE user_id = ? AND product_id = ? LIMIT 1';
+        db.query(sel, [userId, productId], (sErr, rows) => {
+            if (sErr) return callback(sErr);
+            if (!rows || !rows.length) return callback(null);
+            const row = rows[0];
+            const current = Number(row.quantity || 0);
+            const newQty = Math.max(0, current - amt);
+            if (newQty <= 0) {
+                // delete the row rather than updating to zero (some DBs disallow zero by CHECK constraints)
+                return db.query('DELETE FROM user_cart_items WHERE cart_item_id = ?', [row.id], callback);
+            }
+            const newTotal = newQty * Number(row.price || 0);
+            const upd = 'UPDATE user_cart_items SET quantity = ?, total = ? WHERE cart_item_id = ?';
+            db.query(upd, [newQty, newTotal, row.id], callback);
+        });
+    },
+
+    // Update quantity explicitly (and total). If newQty <= 0, the row will be deleted.
+    updateQuantity(userId, productId, newQty, unitPrice, callback) {
+        if (userId == null) return callback(new Error('Missing userId for cart updateQuantity'));
+        if (productId == null) return callback(new Error('Missing productId for cart updateQuantity'));
+        const qty = Number(newQty || 0);
+        const price = Number(unitPrice || 0);
+        if (qty <= 0) {
+            return this.remove(userId, productId, callback);
         }
-          // add success
-        req.flash && req.flash('success', 'Product added to cart.');
-        return res.redirect(req.get('Referrer') || req.get('Referer') || '/menu');
-      });
-        // // Prevent adding if product has no stock
-        // const available = Number(product.quantity || 0);
-        // if (available <= 0) {
-        //   req.flash && req.flash('error', 'Product is out of stock.');
-        //   return res.redirect(req.get('Referrer') || req.get('Referer') || '/menu');
-        // }
+        const total = qty * price;
+        const sql = 'UPDATE user_cart_items SET quantity = ?, price = ?, total = ? WHERE user_id = ? AND product_id = ?';
+        db.query(sql, [qty, price, total, userId, productId], callback);
+    },
 
-  //       // check existing cart quantity for this user/product
-  //       cartitems.getItem(userId, productId, (gErr, existing) => {
-  //         if (gErr) {
-  //           console.error('cartitems.getItem error:', gErr);
-  //           req.flash && req.flash('error', 'Unable to add product to cart.');
-  //           return res.redirect(req.get('Referrer') || req.get('Referer') || '/menu');
-  //         }
-  //         const already = existing ? Number(existing.quantity || 0) : 0;
-  //         const MAX_PER_USER = 10;
-  //         const remainingCap = MAX_PER_USER - already;
-  //         if (remainingCap <= 0) {
-  //           req.flash && req.flash('error', `You already have the maximum of ${MAX_PER_USER} units of this product in your cart.`);
-  //           return res.redirect(req.get('Referrer') || req.get('Referer') || '/menu');
-  //         }
-
-  //         // compute allowed quantity based on stock and cap
-  //         const spaceByStock = Math.max(0, available - already);
-  //         let allowed = Math.min(qty, spaceByStock, remainingCap);
-  //         if (allowed <= 0) {
-  //           if (spaceByStock <= 0) {
-  //             req.flash && req.flash('error', `Cannot add more of this product. Only ${available} available and ${already} already in your cart.`);
-  //           } else {
-  //             req.flash && req.flash('error', `You can add at most ${remainingCap} more unit(s) of this product (purchase limit ${MAX_PER_USER}).`);
-  //           }
-  //           return res.redirect(req.get('Referrer') || req.get('Referer') || '/menu');
-  //         }
-
-  //         cartitems.add(userId, productId, allowed, unitPrice, function (errAdd) {
-  //           if (errAdd) {
-  //             console.error('cartitems.add error:', errAdd);
-  //             // surface friendly message if cap reached
-  //             const msg = (errAdd && errAdd.message && errAdd.message.indexOf('Maximum 10') !== -1) ? errAdd.message : 'Unable to add product to cart.';
-  //             req.flash && req.flash('error', msg);
-  //             return res.redirect(req.get('Referrer') || req.get('Referer') || '/menu');
-  //           }
-  //           if (allowed < qty) {
-  //             req.flash && req.flash('success', `Added ${allowed} unit(s) to cart (limited by stock or per-user cap).`);
-  //           } else {
-  //             req.flash && req.flash('success', 'Product added to cart.');
-  //           }
-  //           return res.redirect(req.get('Referrer') || req.get('Referer') || '/menu');
-  //         });
-  //       });
-  //     }).catch(function (err) {
-  //       console.error('getProductById error:', err);
-  //       req.flash && req.flash('error', 'Unable to add product. Try again.');
-  //       return res.redirect(req.get('Referrer') || req.get('Referer') || '/menu');
-       });
-   },
-
-  // Remove product from cart (decrease or remove)
-  removeFromCart: function (req, res) {
-    const user = req.session && req.session.user;
-    if (!user) {
-      req.flash && req.flash('error', 'Please log in.');
-      return res.redirect('/login');
+    // Clear user's cart
+    clear(userId, callback) {
+        if (userId == null) return callback(new Error('Missing userId for cart clear'));
+        db.query('DELETE FROM user_cart_items WHERE user_id = ?', [userId], callback);
     }
-    const productId = req.body.productId || req.body.product_id || req.params.id;
-    if (!productId) return res.redirect('back');
-    const userId = (req.session.user && (req.session.user.user_id || req.session.user.userId || req.session.user.id));
-      if (!userId) {
-        console.error('removeFromCart: session user exists but user id missing on session.user:', req.session.user);
-        req.flash && req.flash('error', 'Your session is not linked to an account. Please log out and log in again.');
-        return res.redirect('back');
-      }
-    cartitems.remove(userId, productId, (err) => {
-      if (err) {
-        console.error('cartitems.remove error:', err);
-        req.flash && req.flash('error', 'Could not remove item');
-        return res.redirect('/cart');
-      }
-      // remove success
-      req.flash && req.flash('success', 'Item removed from cart.');
-      return res.redirect('/cart');
-    });
-  },
-
-  // Decrease quantity of an item by one. If quantity reaches 0, remove the item.
-  decreaseByOne: function (req, res) {
-    const user = req.session && req.session.user;
-    if (!user) {
-      req.flash && req.flash('error', 'Please log in.');
-      return res.redirect('/login');
-    }
-
-    const productId = req.params.id || req.body.productId || req.body.product_id;
-    if (!productId) {
-      return res.redirect(req.get('Referrer') || req.get('Referer') || '/cart');
-    }
-
-    const userId = (req.session.user && (req.session.user.user_id || req.session.user.userId || req.session.user.id));
-      if (!userId) {
-        console.error('decreaseByOne: session user exists but user id missing on session.user:', req.session.user);
-        req.flash && req.flash('error', 'Your session is not linked to an account. Please log out and log in again.');
-        return res.redirect(req.get('Referrer') || req.get('Referer') || '/cart');
-      }
-    cartitems.decrement(userId, productId, 1, (err) => {
-      if (err) {
-        console.error('cartitems.decrement error:', err);
-        req.flash && req.flash('error', 'Could not update cart');
-        return res.redirect('/cart');
-      }
-      // decrement success
-      req.flash && req.flash('success', 'Cart updated.');
-      return res.redirect('/cart');
-    });
-  },
-
-  // Clear the entire cart
-  clearCart: function (req, res) {
-    const user = req.session && req.session.user;
-    if (!user) {
-      req.flash && req.flash('error', 'Please log in.');
-      return res.redirect('/login');
-    }
-
-    const userId = (req.session.user && (req.session.user.user_id || req.session.user.userId || req.session.user.id));
-      if (!userId) {
-        console.error('clearCart: session user exists but user id missing on session.user:', req.session.user);
-        req.flash && req.flash('error', 'Your session is not linked to an account. Please log out and log in again.');
-        return res.redirect('/cart');
-      }
-    cartitems.clear(userId, (err) => {
-      if (err) {
-        console.error('cartitems.clear error:', err);
-        req.flash && req.flash('error', 'Could not clear cart');
-        return res.redirect('/cart');
-      }
-      // clear success
-      req.flash && req.flash('success', 'Cart cleared.');
-      return res.redirect('/cart');
-    });
-  }
-  
-};
-// Ensure a session-backed cart exists (used by session/local cart flows)
-CartController.ensureCart = function (req) {
-  if (!req || !req.session) return [];
-  if (!Array.isArray(req.session.cart)) req.session.cart = [];
-  return req.session.cart;
 };
 
-// Compute cart totals (works with items that use `qty` or `quantity`)
-CartController.computeCartTotals = function (cart, isMember) {
-  const subtotal = Array.isArray(cart)
-    ? cart.reduce((sum, item) => sum + Number(item.price || 0) * Number(item.qty || item.quantity || 0), 0)
-    : 0;
-  const cashback = isMember ? subtotal * 0.05 : 0;
-  const total = subtotal - cashback;
-  return { subtotal, cashback, total };
-};
+module.exports = cartitems;
 
-module.exports = CartController;
+
 
