@@ -56,5 +56,3 @@ exports.generatePayNowCheckout = async (req, res, next) => {
     next(err);
   }
 };
-
-

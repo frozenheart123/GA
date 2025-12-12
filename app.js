@@ -139,7 +139,7 @@ app.get('/login', authController.getLogin);
 app.post('/login', authController.postLogin);
 app.get('/logout', authController.logout);
 
-// Cart (no client JS)
+// Cart
 app.get('/cart', cartController.list);
 app.post('/cart/add', cartController.addToCart);
 app.post('/cart/decrease/:id', cartController.decreaseByOne);
