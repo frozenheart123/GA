@@ -152,21 +152,66 @@ const { ensureCart, computeCartTotals } = cartController;
 app.get('/checkout', paymentController.generatePayNowCheckout);
 
 app.post('/checkout', (req, res) => {
-  const cart = ensureCart(req);
   const isMember = !!(req.session.user && req.session.user.is_member);
+  // If logged in, compute totals from DB-backed cart; otherwise use session cart
+  if (req.session && req.session.user) {
+    const userId = (req.session.user.user_id || req.session.user.userId || req.session.user.id);
+    return cartitems.getByUserId(userId, (err, rows) => {
+      if (err) {
+        console.error('GET /checkout cartitems.getByUserId error:', err);
+        return res.redirect('/cart');
+      }
+      if (!rows || !rows.length) return res.redirect('/cart');
+      const totals = computeCartTotals(rows, isMember);
+      const paymentInfo = {
+        name: req.body.name || (req.session.user && req.session.user.name) || 'Guest',
+        email: req.body.email || (req.session.user && req.session.user.email) || '',
+      };
+      // Clear both session and DB cart after checkout
+      req.session.cart = [];
+      cartitems.clear(userId, (clearErr) => {
+        if (clearErr) console.error('cartitems.clear error on checkout:', clearErr);
+        return res.render('checkout_success', { totals, isMember, paymentInfo });
+      });
+    });
+  }
+  const cart = ensureCart(req);
   if (!cart.length) return res.redirect('/cart');
   const totals = computeCartTotals(cart, isMember);
   const paymentInfo = {
-    name: req.body.name || (req.session.user && req.session.user.name) || 'Guest',
-    email: req.body.email || (req.session.user && req.session.user.email) || '',
+    name: req.body.name || 'Guest',
+    email: req.body.email || '',
   };
   req.session.cart = [];
-  res.render('checkout_success', { totals, isMember, paymentInfo });
+  return res.render('checkout_success', { totals, isMember, paymentInfo });
 });
 
 app.post('/checkout/confirm', (req, res) => {
-  const cart = ensureCart(req);
   const isMember = !!(req.session.user && req.session.user.is_member);
+  if (req.session && req.session.user) {
+    const userId = (req.session.user.user_id || req.session.user.userId || req.session.user.id);
+    return cartitems.getByUserId(userId, (err, rows) => {
+      if (err) {
+        console.error('POST /checkout/confirm cartitems.getByUserId error:', err);
+        return res.redirect('/checkout');
+      }
+      if (!rows || !rows.length) return res.redirect('/checkout');
+      const totals = computeCartTotals(rows, isMember);
+      const amount = Number(req.body.amount || 0);
+      if (Math.abs(amount - totals.total) > 0.01) {
+        return res.status(400).send('Amount mismatch—please refresh and try again.');
+      }
+      const paymentInfo = {
+        name: req.session.user ? req.session.user.name : 'Guest',
+        email: req.session.user ? req.session.user.email : '',
+        method: 'PayNow',
+        reference: req.body.reference || 'PayNow',
+      };
+      req.session.cart = [];
+      return res.render('checkout_success', { totals, isMember, paymentInfo });
+    });
+  }
+  const cart = ensureCart(req);
   if (!cart.length) return res.redirect('/checkout');
   const totals = computeCartTotals(cart, isMember);
   const amount = Number(req.body.amount || 0);
@@ -174,13 +219,13 @@ app.post('/checkout/confirm', (req, res) => {
     return res.status(400).send('Amount mismatch—please refresh and try again.');
   }
   const paymentInfo = {
-    name: req.session.user ? req.session.user.name : 'Guest',
-    email: req.session.user ? req.session.user.email : '',
+    name: 'Guest',
+    email: '',
     method: 'PayNow',
     reference: req.body.reference || 'PayNow',
   };
   req.session.cart = [];
-  res.render('checkout_success', { totals, isMember, paymentInfo });
+  return res.render('checkout_success', { totals, isMember, paymentInfo });
 });
 // Admin
 app.get('/admin', requireAdmin, adminController.getDashboard);
