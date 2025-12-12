@@ -1,40 +1,44 @@
 const QRCode = require('qrcode');
 const paynowUtils = require('../utils/paynow');
 const cartitems = require('../models/cartitems');
+const { computeCartTotals, ensureCart } = require('./cartController');
 
 exports.generatePayNowCheckout = async (req, res, next) => {
   try {
-    let cart = req.session?.cart || [];
-    
-    // If session cart is empty and user is logged in, load from DB
-    if ((!cart || !cart.length) && req.session?.user) {
-      const userId = req.session.user.user_id || req.session.user.userId || req.session.user.id;
-      if (userId) {
-        const rows = await new Promise((resolve, reject) => {
-          cartitems.getByUserId(userId, (err, result) => {
-            if (err) reject(err);
-            else resolve(result);
-          });
+    const isMember = !!(req.session?.user && req.session.user.is_member);
+    const userId = req.session?.user
+      ? (req.session.user.user_id || req.session.user.userId || req.session.user.id)
+      : null;
+    let cart = [];
+
+    if (userId) {
+      const rows = await new Promise((resolve, reject) => {
+        cartitems.getByUserId(userId, (err, result) => {
+          if (err) reject(err);
+          else resolve(result);
         });
-        if (rows && rows.length) {
-          // Normalize DB rows to session cart shape
-          cart = rows.map(r => ({
-            price: Number(r.price || 0),
-            qty: Number(r.quantity || 0)
-          }));
-        }
-      }
+      });
+      cart = (rows || []).map((r) => ({
+        price: Number(r.price || 0),
+        qty: Number(r.quantity || 0),
+      }));
+    } else {
+      cart = ensureCart(req);
     }
 
-    const fallbackAmount =
-      Number(req.query?.amount || req.body?.amount || req.session?.checkoutAmount || 0);
-    const amount =
-      (cart.length &&
-        cart.reduce((sum, item) => sum + Number(item.price || 0) * Number(item.qty || 0), 0)) ||
-      fallbackAmount;
-    if (!amount || isNaN(amount) || amount <= 0) {
-      return res.status(400).send('Invalid amount');
+    if (!cart || !cart.length) {
+      req.session.checkoutAmount = 0;
+      return res.redirect('/cart');
     }
+
+    const totals = computeCartTotals(cart, isMember);
+    const amount = Number(totals.total || 0);
+    if (!Number.isFinite(amount) || amount <= 0) {
+      req.session.checkoutAmount = 0;
+      return res.redirect('/cart');
+    }
+
+    req.session.checkoutAmount = amount;
     const reference = `PN${Date.now()}`.substring(0, 25);
     const payload = paynowUtils.buildPayNowPayload({
       amount,
@@ -51,6 +55,10 @@ exports.generatePayNowCheckout = async (req, res, next) => {
       amount: amount.toFixed(2),
       reference,
       paynowQr,
+      totals,
+      isMember,
+      cart,
+      user: req.session?.user || null,
     });
   } catch (err) {
     next(err);
