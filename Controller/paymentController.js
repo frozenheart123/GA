@@ -1,9 +1,31 @@
 const QRCode = require('qrcode');
 const paynowUtils = require('../utils/paynow');
+const cartitems = require('../models/cartitems');
 
 exports.generatePayNowCheckout = async (req, res, next) => {
   try {
-    const cart = req.session?.cart || [];
+    let cart = req.session?.cart || [];
+    
+    // If session cart is empty and user is logged in, load from DB
+    if ((!cart || !cart.length) && req.session?.user) {
+      const userId = req.session.user.user_id || req.session.user.userId || req.session.user.id;
+      if (userId) {
+        const rows = await new Promise((resolve, reject) => {
+          cartitems.getByUserId(userId, (err, result) => {
+            if (err) reject(err);
+            else resolve(result);
+          });
+        });
+        if (rows && rows.length) {
+          // Normalize DB rows to session cart shape
+          cart = rows.map(r => ({
+            price: Number(r.price || 0),
+            qty: Number(r.quantity || 0)
+          }));
+        }
+      }
+    }
+
     const fallbackAmount =
       Number(req.query?.amount || req.body?.amount || req.session?.checkoutAmount || 0);
     const amount =
@@ -34,3 +56,5 @@ exports.generatePayNowCheckout = async (req, res, next) => {
     next(err);
   }
 };
+
+
