@@ -101,6 +101,15 @@
 
 <main class="container">
   <h1 style="margin:8px 0 8px 0">Orders Management</h1>
+  <% if (refundAlert === 'ok') { %>
+    <div class="card" style="margin-top:8px;border-color:#a7f3d0;background:#ecfdf5">
+      <div class="card-body" style="color:#065f46;font-weight:800">Refund processed.</div>
+    </div>
+  <% } else if (refundAlert === 'error') { %>
+    <div class="card" style="margin-top:8px;border-color:#fecdd3;background:#fff1f2">
+      <div class="card-body" style="color:#991b1b;font-weight:800">Refund failed. Please try again.</div>
+    </div>
+  <% } %>
   <section class="card">
     <div class="card-body">
       <form class="row" method="get" action="/admin/orders">
@@ -143,6 +152,9 @@
                   </select>
                   <button class="btn" type="submit">Update</button>
                 </form>
+                <% if (String(order.status).toLowerCase() !== 'refunded') { %>
+                  <button class="btn" type="button" data-refund-btn data-order-id="<%= order.order_id %>" data-items='<%- JSON.stringify(itemsByOrder[order.order_id] || []) %>'>Refund</button>
+                <% } %>
               </td>
             </tr>
             <tr class="detail-row">
@@ -172,5 +184,74 @@
     </div>
   </section>
 </main>
+
+<div id="refundModal" style="position:fixed;inset:0;background:rgba(15,23,42,.45);display:none;align-items:center;justify-content:center;z-index:120;">
+  <div style="background:#fff;border:1px solid var(--ring);border-radius:16px;box-shadow:var(--shadow);width:min(92vw,520px);padding:18px;">
+    <h3 style="margin:0 0 8px 0">Refund Order</h3>
+    <p style="margin:0 0 12px 0;color:#64748b">Review items before refund.</p>
+    <div id="refundItems" style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:12px"></div>
+    <label style="display:flex;gap:8px;align-items:center;margin-bottom:14px">
+      <input type="checkbox" id="refundNoRestock">
+      <span>Refund by demand (do not restock)</span>
+    </label>
+    <form id="refundForm" method="post">
+      <input type="hidden" name="no_restock" id="refundNoRestockField" value="0">
+      <div style="display:flex;justify-content:flex-end;gap:10px;flex-wrap:wrap">
+        <button class="btn" type="button" id="refundCancel">Cancel</button>
+        <button class="btn primary" type="submit">Confirm Refund</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<script>
+  (function(){
+    const modal = document.getElementById('refundModal');
+    const itemsBox = document.getElementById('refundItems');
+    const form = document.getElementById('refundForm');
+    const cancelBtn = document.getElementById('refundCancel');
+    const noRestock = document.getElementById('refundNoRestock');
+    const noRestockField = document.getElementById('refundNoRestockField');
+    if (!modal || !itemsBox || !form) return;
+
+    function openModal(orderId, items){
+      itemsBox.innerHTML = '';
+      (items || []).forEach(function(item){
+        const pill = document.createElement('div');
+        pill.className = 'item-pill';
+        pill.innerHTML = '<strong>' + (item.name || 'Item') + '</strong>' +
+          '<span>Qty: ' + (item.quantity || 0) + '</span>' +
+          '<span>$' + Number(item.line_total || 0).toFixed(2) + '</span>';
+        itemsBox.appendChild(pill);
+      });
+      if (!items || !items.length) {
+        const empty = document.createElement('span');
+        empty.style.color = 'var(--muted)';
+        empty.textContent = 'No items recorded.';
+        itemsBox.appendChild(empty);
+      }
+      form.action = '/admin/orders/' + orderId + '/refund';
+      noRestock.checked = false;
+      noRestockField.value = '0';
+      modal.style.display = 'flex';
+    }
+    function closeModal(){ modal.style.display = 'none'; }
+
+    document.querySelectorAll('[data-refund-btn]').forEach(function(btn){
+      btn.addEventListener('click', function(){
+        let items = [];
+        try { items = JSON.parse(btn.getAttribute('data-items') || '[]'); } catch (e) {}
+        openModal(btn.getAttribute('data-order-id'), items);
+      });
+    });
+    cancelBtn.addEventListener('click', closeModal);
+    modal.addEventListener('click', function(ev){
+      if (ev.target === modal) closeModal();
+    });
+    noRestock.addEventListener('change', function(){
+      noRestockField.value = noRestock.checked ? '1' : '0';
+    });
+  })();
+</script>
 </body>
 </html>

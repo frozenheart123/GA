@@ -27,7 +27,7 @@ exports.getItemsForOrders = (orderIds) => {
   });
 };
 
-const STATUS_OPTIONS = ['Pending', 'Preparing', 'Ready', 'Completed', 'Cancelled'];
+const STATUS_OPTIONS = ['Pending', 'Preparing', 'Ready', 'Completed', 'Cancelled', 'Refunded'];
 
 exports.adminList = ({ q, status } = {}) => {
   return new Promise((resolve, reject) => {
@@ -80,6 +80,24 @@ exports.updateStatus = (orderId, status) => {
       resolve(result.affectedRows > 0);
     });
   });
+};
+
+exports.restockItems = async (orderId) => {
+  const items = await exports.getItemsForOrders([orderId]);
+  if (!items || !items.length) return true;
+  return Promise.all(items.map((item) => {
+    return new Promise((resolve, reject) => {
+      if (!item.product_id) return resolve(false);
+      db.query(
+        'UPDATE product SET quantity = quantity + ? WHERE product_id = ?',
+        [Number(item.quantity || 0), item.product_id],
+        (err, result) => {
+          if (err) return reject(err);
+          resolve(result.affectedRows > 0);
+        }
+      );
+    });
+  }));
 };
 
 exports.statusOptions = () => STATUS_OPTIONS.slice();

@@ -263,6 +263,7 @@ app.post('/admin/users/:id/member', requireAdmin, adminUsersController.postMakeM
 app.post('/admin/users/:id/member/clear', requireAdmin, adminUsersController.postClearMember);
 app.get('/admin/orders', requireAdmin, adminOrdersController.dashboard);
 app.post('/admin/orders/:id/status', requireAdmin, adminOrdersController.postStatus);
+app.post('/admin/orders/:id/refund', requireAdmin, adminOrdersController.postRefund);
 app.get('/admin/reports', requireAdmin, adminReportsController.dashboard);
 
 // Orders

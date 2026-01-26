@@ -118,20 +118,20 @@ exports.postAccount = async (req, res) => {
           const profile = await User.getById(uid);
           const headerPath = req.session.user.header_image || null;
           const remaining = await MfaModel.getRemainingCount(uid).catch(() => 0);
-          return res.status(403).render('account', { profile, headerPath, saved: true, changed: false, error: 'Authenticator or backup code required to change password', mfa: auth, mfaSetup: null, backupRemaining: remaining, backupPreview: null });
+          return res.status(403).render('account', { profile, headerPath, saved: true, changed: false, error: 'Authenticator or backup code required to change password', mfa: auth, mfaSetup: null, backupRemaining: remaining, backupPreview: null, adminProfit: null });
         }
       }
       if (new_password !== confirm_password) {
         const profile = await User.getById(uid);
         const headerPath = req.session.user.header_image || null;
         const remaining = await MfaModel.getRemainingCount(uid).catch(() => 0);
-        return res.render('account', { profile, headerPath, saved: true, changed: false, error: 'Passwords do not match.', mfa: auth, mfaSetup: null, backupRemaining: remaining, backupPreview: null });
+        return res.render('account', { profile, headerPath, saved: true, changed: false, error: 'Passwords do not match.', mfa: auth, mfaSetup: null, backupRemaining: remaining, backupPreview: null, adminProfit: null });
       }
       if (String(new_password).length < 6) {
         const profile = await User.getById(uid);
         const headerPath = req.session.user.header_image || null;
         const remaining = await MfaModel.getRemainingCount(uid).catch(() => 0);
-        return res.render('account', { profile, headerPath, saved: true, changed: false, error: 'Password must be at least 6 characters.', mfa: auth, mfaSetup: null, backupRemaining: remaining, backupPreview: null });
+        return res.render('account', { profile, headerPath, saved: true, changed: false, error: 'Password must be at least 6 characters.', mfa: auth, mfaSetup: null, backupRemaining: remaining, backupPreview: null, adminProfit: null });
       }
       await User.updatePassword(uid, new_password);
       return res.redirect('/account?changed=1&saved=1');

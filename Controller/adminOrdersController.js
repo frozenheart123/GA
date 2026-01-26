@@ -20,6 +20,7 @@ exports.dashboard = async (req, res) => {
       q: q || '',
       status: status || 'All',
       orderStatuses: STATUSES,
+      refundAlert: req.query.refund || '',
     });
   } catch (e) {
     console.error('admin orders error:', e);
@@ -35,4 +36,19 @@ exports.postStatus = async (req, res) => {
     console.error('update order status error:', e);
   }
   res.redirect('/admin/orders');
+};
+
+exports.postRefund = async (req, res) => {
+  try {
+    const orderId = req.params.id;
+    const noRestock = String(req.body.no_restock || '') === '1';
+    await Order.updateStatus(orderId, 'Refunded');
+    if (!noRestock) {
+      await Order.restockItems(orderId);
+    }
+    return res.redirect('/admin/orders?refund=ok');
+  } catch (e) {
+    console.error('refund order error:', e);
+    return res.redirect('/admin/orders?refund=error');
+  }
 };
