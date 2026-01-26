@@ -223,7 +223,10 @@ async function decrementProductStock(productId, quantity) {
 
 // Process payment and mark cart items as paid
 exports.pay = async (req, res) => {
+  console.log("=== PAY ENDPOINT CALLED ===");
   console.log("pay called with body:", req.body);
+  console.log("Session user:", req.session?.user);
+  
   try {
     // Validate user is logged in
     if (!req.session.user) {
@@ -378,13 +381,20 @@ exports.pay = async (req, res) => {
     });
 
   } catch (err) {
+    console.error("=== PAY ENDPOINT ERROR ===");
     console.error("pay error:", err);
+    console.error("pay error message:", err.message);
     console.error("pay error stack:", err.stack);
-    res.status(500).json({ 
-      error: "Failed to process payment", 
-      message: err.message,
-      details: err.toString()
-    });
+    console.error("pay error name:", err.name);
+    
+    // Try to respond if headers haven't been sent
+    if (!res.headersSent) {
+      res.status(500).json({ 
+        error: "Failed to process payment", 
+        message: err.message,
+        details: err.toString()
+      });
+    }
   }
 };
 

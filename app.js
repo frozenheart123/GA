@@ -4,6 +4,20 @@ const multer = require('multer');
 const session = require('express-session');
 require('dotenv').config();
 
+// Global error handlers
+process.on('unhandledRejection', (reason, promise) => {
+  console.error('=== UNHANDLED REJECTION ===');
+  console.error('Reason:', reason);
+  console.error('Promise:', promise);
+  console.error('Stack:', reason?.stack);
+});
+
+process.on('uncaughtException', (error) => {
+  console.error('=== UNCAUGHT EXCEPTION ===');
+  console.error('Error:', error);
+  console.error('Stack:', error.stack);
+});
+
 // Controllers
 const homeController = require('./Controller/homeController');
 const productsController = require('./Controller/productsController');
@@ -234,43 +248,21 @@ app.post('/checkout/confirm', (req, res) => {
 // GET /checkout_success - Display success page after payment
 app.get('/checkout_success', (req, res) => {
   const isMember = !!(req.session.user && req.session.user.is_member);
-  
-  // If logged in, fetch real cart totals from database
-  if (req.session && req.session.user) {
-    const userId = (req.session.user.user_id || req.session.user.userId || req.session.user.id);
-    return cartitems.getByUserId(userId, (err, rows) => {
-      // Even if there's an error, show success page with placeholder data
-      let totals;
-      if (!err && rows && rows.length) {
-        totals = computeCartTotals(rows, isMember);
-      } else {
-        // Fallback totals if cart query fails
-        totals = { subtotal: 0, tax: 0, cashback: 0, total: 0 };
-      }
-      
-      const paymentInfo = {
-        name: req.session.user ? req.session.user.name : 'Guest',
-        email: req.session.user ? req.session.user.email : '',
-        method: 'PayPal',
-        reference: req.query.transactionId || 'PayPal',
-      };
-      
-      return res.render('checkout_success', { totals, isMember, paymentInfo });
-    });
-  }
-  
-  // For non-logged-in users, show success with session cart data
-  const cart = ensureCart(req);
-  const totals = cart.length ? computeCartTotals(cart, isMember) : { subtotal: 0, tax: 0, cashback: 0, total: 0 };
-  
-  const paymentInfo = {
-    name: 'Guest',
-    email: '',
-    method: 'PayPal',
-    reference: req.query.transactionId || 'PayPal',
+  // Get payment details from query params
+  const amount = parseFloat(req.query.amount) || 0;
+  const cashback = isMember ? amount * 0.05 : 0;
+  const totals = {
+    subtotal: amount,
+    tax: 0,
+    cashback: cashback,
+    total: amount
   };
-  
-  req.session.cart = [];
+  const paymentInfo = {
+    name: req.session.user ? req.session.user.name : 'Guest',
+    email: req.session.user ? req.session.user.email : '',
+    method: req.query.paymentMethod || 'PayPal',
+    reference: req.query.reference || 'N/A',
+  };
   return res.render('checkout_success', { totals, isMember, paymentInfo });
 });
 

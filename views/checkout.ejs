@@ -219,9 +219,14 @@
             .then(res => res.json())
             .then(details => {
               if (details.success) {
-                // Redirect to success page, using transactionId as fallback if no orderId
-                const successPageUrl = "/checkout_success?transactionId=" + (details.transaction?.id || 'pending');
-                window.location.href = successPageUrl;
+                // Build success page URL with payment details
+                const params = new URLSearchParams({
+                  amount: details.transaction?.amount || totalAmount,
+                  paymentMethod: 'PayPal',
+                  reference: details.transaction?.orderId || data.orderID,
+                  orderId: details.orderId || ''
+                });
+                window.location.href = "/checkout_success?" + params.toString();
               } else {
                 alert('Payment not completed: ' + (details.error || 'Unknown error'));
               }

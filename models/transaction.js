@@ -1,12 +1,13 @@
-const db = require('../db'); // This is now the promise-based pool
+const db = require('../db');
 
 const Transaction = {
-  create: async (data) => {
+  create: (data, callback) => {
     const sql = `INSERT INTO transactions (orderId, payerId, payerEmail, amount, currency, status, time)
                  VALUES (?, ?, ?, ?, ?, ?, ?)`;
     const params = [data.orderId, data.payerId, data.payerEmail, data.amount, data.currency, data.status, data.time];
-    const [result] = await db.query(sql, params);
-    return result;
+    db.query(sql, params, (err, result) => {
+      if (callback) callback(err, result);
+    });
   }
 };
 
