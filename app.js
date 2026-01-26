@@ -2,6 +2,7 @@
 const express = require('express');
 const multer = require('multer');
 const session = require('express-session');
+const axios = require('axios');
 require('dotenv').config();
 
 // Global error handlers
@@ -32,6 +33,7 @@ const cartController = require('./Controller/cartController');
 const paymentController = require('./Controller/paymentController');
 const ordersController = require('./Controller/ordersController');
 const accountController = require('./Controller/accountController');
+const netsQr = require('./services/nets');
 const UserModel = require('./models/user');
 const cartitems = require('./models/cartitems');
 const speakeasy = require('speakeasy');
@@ -271,6 +273,76 @@ app.post('/api/paypal/create-order', paymentController.createOrder);
 app.post('/api/paypal/pay', paymentController.pay);
 app.get('/api/paypal/cart-items', paymentController.getCartItems);
 app.get('/api/paypal/cart-details', paymentController.getCartDetails);
+
+// NETS QR API Routes
+app.post('/generateNETSQR', netsQr.generateQrCode);
+app.get('/nets-qr/success', (req, res) => {
+  res.render('netsTxnSuccessStatus', { message: 'Transaction Successful!' });
+});
+app.get('/nets-qr/fail', (req, res) => {
+  res.render('netsTxnFailStatus', { message: 'Transaction Failed. Please try again.' });
+});
+app.get('/sse/payment-status/:txnRetrievalRef', async (req, res) => {
+  res.set({
+    'Content-Type': 'text/event-stream',
+    'Cache-Control': 'no-cache',
+    'Connection': 'keep-alive'
+  });
+
+  const txnRetrievalRef = req.params.txnRetrievalRef;
+  let pollCount = 0;
+  const maxPolls = 60;
+  let frontendTimeoutStatus = 0;
+
+  const interval = setInterval(async () => {
+    pollCount++;
+
+    try {
+      const response = await axios.post(
+        'https://sandbox.nets.openapipaas.com/api/v1/common/payments/nets-qr/query',
+        { txn_retrieval_ref: txnRetrievalRef, frontend_timeout_status: frontendTimeoutStatus },
+        {
+          headers: {
+            'api-key': process.env.API_KEY,
+            'project-id': process.env.PROJECT_ID,
+            'Content-Type': 'application/json'
+          }
+        }
+      );
+
+      console.log("Polling response:", response.data);
+      res.write(`data: ${JSON.stringify(response.data)}\n\n`);
+      
+      const resData = response.data.result.data;
+
+      if (resData.response_code == "00" && resData.txn_status === 1) {
+        res.write(`data: ${JSON.stringify({ success: true })}\n\n`);
+        clearInterval(interval);
+        res.end();
+      } else if (frontendTimeoutStatus == 1 && resData && (resData.response_code !== "00" || resData.txn_status === 2)) {
+        res.write(`data: ${JSON.stringify({ fail: true, ...resData })}\n\n`);
+        clearInterval(interval);
+        res.end();
+      }
+
+    } catch (err) {
+      clearInterval(interval);
+      res.write(`data: ${JSON.stringify({ error: err.message })}\n\n`);
+      res.end();
+    }
+
+    if (pollCount >= maxPolls) {
+      clearInterval(interval);
+      frontendTimeoutStatus = 1;
+      res.write(`data: ${JSON.stringify({ fail: true, error: "Timeout" })}\n\n`);
+      res.end();
+    }
+  }, 5000);
+
+  req.on('close', () => {
+    clearInterval(interval);
+  });
+});
 
 // Admin
 app.get('/admin', requireAdmin, adminController.getDashboard);
