@@ -82,4 +82,46 @@ exports.updateStatus = (orderId, status) => {
   });
 };
 
+// Create a new order
+exports.createOrder = (userId, totalAmount, address) => {
+  return new Promise((resolve, reject) => {
+    // Note: Adjust column names based on your actual database schema
+    // If 'address' column doesn't exist, remove it from the INSERT
+    const sql = `INSERT INTO orders (user_id, subtotal_amount, discount_amount, total_amount, status, created_at)
+                 VALUES (?, ?, ?, ?, 'Pending', NOW())`;
+    const params = [userId, totalAmount, 0, totalAmount];
+    db.query(sql, params, (err, result) => {
+      if (err) {
+        console.error('Error creating order:', err);
+        return reject(err);
+      }
+      resolve(result);
+    });
+  });
+};
+
+// Add items to an order
+exports.addOrderItems = (orderId, items, address) => {
+  return new Promise((resolve, reject) => {
+    if (!items || !items.length) {
+      return resolve({ affectedRows: 0 });
+    }
+    
+    const values = items.map(item => [
+      orderId,
+      item.productId || item.product_id,
+      item.quantity,
+      item.price,
+      item.total || (item.price * item.quantity)
+    ]);
+    
+    const sql = `INSERT INTO order_item (order_id, product_id, quantity, unit_price, line_total)
+                 VALUES ?`;
+    db.query(sql, [values], (err, result) => {
+      if (err) return reject(err);
+      resolve(result);
+    });
+  });
+};
+
 exports.statusOptions = () => STATUS_OPTIONS.slice();

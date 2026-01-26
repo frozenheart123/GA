@@ -227,6 +227,56 @@ app.post('/checkout/confirm', (req, res) => {
   req.session.cart = [];
   return res.render('checkout_success', { totals, isMember, paymentInfo });
 });
+
+// GET /checkout_success - Display success page after payment
+app.get('/checkout_success', (req, res) => {
+  const isMember = !!(req.session.user && req.session.user.is_member);
+  
+  // If logged in, fetch real cart totals from database
+  if (req.session && req.session.user) {
+    const userId = (req.session.user.user_id || req.session.user.userId || req.session.user.id);
+    return cartitems.getByUserId(userId, (err, rows) => {
+      // Even if there's an error, show success page with placeholder data
+      let totals;
+      if (!err && rows && rows.length) {
+        totals = computeCartTotals(rows, isMember);
+      } else {
+        // Fallback totals if cart query fails
+        totals = { subtotal: 0, tax: 0, cashback: 0, total: 0 };
+      }
+      
+      const paymentInfo = {
+        name: req.session.user ? req.session.user.name : 'Guest',
+        email: req.session.user ? req.session.user.email : '',
+        method: 'PayPal',
+        reference: req.query.transactionId || 'PayPal',
+      };
+      
+      return res.render('checkout_success', { totals, isMember, paymentInfo });
+    });
+  }
+  
+  // For non-logged-in users, show success with session cart data
+  const cart = ensureCart(req);
+  const totals = cart.length ? computeCartTotals(cart, isMember) : { subtotal: 0, tax: 0, cashback: 0, total: 0 };
+  
+  const paymentInfo = {
+    name: 'Guest',
+    email: '',
+    method: 'PayPal',
+    reference: req.query.transactionId || 'PayPal',
+  };
+  
+  req.session.cart = [];
+  return res.render('checkout_success', { totals, isMember, paymentInfo });
+});
+
+// PayPal API Routes
+app.post('/api/paypal/create-order', paymentController.createOrder);
+app.post('/api/paypal/pay', paymentController.pay);
+app.get('/api/paypal/cart-items', paymentController.getCartItems);
+app.get('/api/paypal/cart-details', paymentController.getCartDetails);
+
 // Admin
 app.get('/admin', requireAdmin, adminController.getDashboard);
 // Multer storage for image uploads under public/images

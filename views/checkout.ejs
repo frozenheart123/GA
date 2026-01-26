@@ -4,6 +4,9 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Checkout - Mala Hot Pot Market</title>
+  <% if (paypalClientId) { %>
+  <script src="https://www.paypal.com/sdk/js?client-id=<%= paypalClientId %>&currency=SGD"></script>
+  <% } %>
   <style>
     :root{
       --primary:#d14343; --primary-ink:#8b1f1f; --ink:#0f172a; --muted:#6b7280;
@@ -95,27 +98,34 @@
 
             <div class="card" style="border:1px solid var(--ring); background:#fff">
               <div class="card-body">
-                <h3 style="margin:0 0 8px 0;font-size:1.05rem">Payment</h3>
-                <div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap;margin-bottom:6px">
-                  <label style="display:flex;align-items:center;gap:8px;cursor:pointer">
-                    <input type="radio" name="payment_method" value="PayNow" checked>
-                    <span>PayNow (QR)</span>
-                  </label>
-                  <label style="display:flex;align-items:center;gap:8px;cursor:pointer">
-                    <input type="radio" name="payment_method" value="COD">
-                    <span>Cash on Delivery</span>
-                  </label>
-                </div>
+                <h3 style="margin:0 0 8px 0;font-size:1.05rem">Payment Options</h3>
                 <div class="note" style="margin-bottom:12px"><%= isMember ? 'Member 5% discount is applied automatically.' : 'Member 5% discount is applied automatically.' %></div>
-                <% if (paynowQr) { %>
-                  <div style="margin-top:10px;display:flex;gap:14px;align-items:center;flex-wrap:wrap">
-                    <div style="text-align:center">
-                      <img src="<%= paynowQr %>" alt="PayNow QR" width="150" height="150" style="border:1px solid var(--ring);border-radius:10px;background:#fff">
-                      <div class="note" style="margin-top:6px">Ref: <strong><%= reference %></strong></div>
+                
+                <!-- PayPal Payment -->
+                <div style="margin-bottom:20px">
+                  <h4 style="margin:0 0 10px 0;font-size:1rem;font-weight:800">Pay with PayPal</h4>
+                  <div id="paypal-button-container" style="max-width:400px"></div>
+                </div>
+
+                <!-- NETS QR Payment -->
+                <div style="margin-bottom:20px">
+                  <h4 style="margin:0 0 10px 0;font-size:1rem;font-weight:800">Pay with NETS QR</h4>
+                  <button type="button" id="netsButton" class="btn primary" style="width:100%;max-width:400px">Generate NETS QR Code</button>
+                </div>
+
+                <!-- PayNow Payment -->
+                <div>
+                  <h4 style="margin:0 0 10px 0;font-size:1rem;font-weight:800">Pay with PayNow (QR)</h4>
+                  <% if (paynowQr) { %>
+                    <div style="margin-top:10px;display:flex;gap:14px;align-items:center;flex-wrap:wrap">
+                      <div style="text-align:center">
+                        <img src="<%= paynowQr %>" alt="PayNow QR" width="150" height="150" style="border:1px solid var(--ring);border-radius:10px;background:#fff">
+                        <div class="note" style="margin-top:6px">Ref: <strong><%= reference %></strong></div>
+                      </div>
+                      <div class="hint">Scan with your PayNow app. Amount is pre-filled and locked at S$<%= amount %>. Keep this tab open while you complete payment.</div>
                     </div>
-                    <div class="hint">Scan with your PayNow app. Amount is pre-filled and locked at S$<%= amount %>. Keep this tab open while you complete payment.</div>
-                  </div>
-                <% } %>
+                  <% } %>
+                </div>
               </div>
             </div>
 
@@ -156,5 +166,135 @@
       </div>
     </div>
   </main>
+
+  <script>
+    const totalAmount = '<%= amount %>';
+    const addressInput = document.querySelector('textarea[name="address"]');
+    const cart = <%= JSON.stringify((cart || []).map(item => item.productId)) %>;
+    const paypalClientId = '<%= paypalClientId || "" %>';
+
+    // PayPal Button Integration
+    function renderPaypalButtons() {
+      if (!window.paypal) {
+        console.error('PayPal SDK not loaded');
+        document.getElementById('paypal-button-container').innerHTML = '<div class="note" style="color:red">PayPal SDK failed to load. Please check your internet connection.</div>';
+        return;
+      }
+      paypal.Buttons({
+        createOrder: function (data, actions) {
+          return fetch('/api/paypal/create-order', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ amount: totalAmount })
+          })
+            .then(res => res.json())
+            .then(data => {
+              console.log('Create order response:', data);
+              if (data.success && data.orderId) {
+                return data.orderId;
+              } else if (data.orderId) {
+                return data.orderId;
+              } else {
+                console.error('Unexpected response format:', data);
+                throw new Error('Failed to create order: ' + (data.message || data.error || 'Unknown error'));
+              }
+            })
+            .catch(err => {
+              console.error('Create order fetch error:', err);
+              throw err;
+            });
+        },
+        onApprove: function (data, actions) {
+          return fetch('/api/paypal/pay', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ 
+              orderId: data.orderID,
+              cartItemIds: cart,
+              address: addressInput.value.trim()
+            })
+          })
+            .then(res => res.json())
+            .then(details => {
+              if (details.success) {
+                // Redirect to success page, using transactionId as fallback if no orderId
+                const successPageUrl = "/checkout_success?transactionId=" + (details.transaction?.id || 'pending');
+                window.location.href = successPageUrl;
+              } else {
+                alert('Payment not completed: ' + (details.error || 'Unknown error'));
+              }
+            })
+            .catch(err => {
+              console.error('Payment error:', err);
+              alert('Payment processing failed. Please try again.');
+            });
+        },
+        onClick: function (data, actions) {
+          if (!cart.length) {
+            alert('Your cart is empty. Please add items to cart before paying.');
+            return actions.reject();
+          }
+
+          const address = addressInput.value.trim();
+          if (!address) {
+            alert('Please enter a shipping address.');
+            addressInput.focus();
+            return actions.reject();
+          }
+
+          return actions.resolve();
+        },
+        onError: function (err) {
+          console.error('PayPal error details:', err);
+          console.error('Error message:', err.message);
+          console.error('Error stack:', err.stack);
+          alert('An error occurred with PayPal: ' + (err.message || JSON.stringify(err)));
+        }
+      }).render('#paypal-button-container');
+    }
+
+    if (!paypalClientId) {
+      console.warn('PayPal client ID not configured');
+      document.getElementById('paypal-button-container').innerHTML = '<div class="note" style="color:orange">PayPal is not configured. Please add PAYPAL_CLIENT_ID to .env file.</div>';
+    } else if (cart && cart.length > 0) {
+      renderPaypalButtons();
+    } else {
+      document.getElementById('paypal-button-container').innerHTML = '<div class="note">Cart is empty</div>';
+    }
+
+    // NETS QR Button Handler
+    document.getElementById('netsButton').addEventListener('click', function() {
+      const address = addressInput.value.trim();
+      if (!address) {
+        alert('Please enter a shipping address before proceeding with payment.');
+        addressInput.focus();
+        return;
+      }
+
+      // Create a form to submit NETS QR generation
+      const form = document.createElement('form');
+      form.method = 'POST';
+      form.action = '/generateNETSQR';
+
+      const amountField = document.createElement('input');
+      amountField.type = 'hidden';
+      amountField.name = 'cartTotal';
+      amountField.value = totalAmount;
+      form.appendChild(amountField);
+
+      const addressField = document.createElement('input');
+      addressField.type = 'hidden';
+      addressField.name = 'address';
+      addressField.value = address;
+      form.appendChild(addressField);
+
+      document.body.appendChild(form);
+      form.submit();
+    });
+  </script>
 </body>
 </html>
