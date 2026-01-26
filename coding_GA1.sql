@@ -1,5 +1,5 @@
 CREATE DATABASE  IF NOT EXISTS `ga_malamart` /*!40100 DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci */ /*!80016 DEFAULT ENCRYPTION='N' */;
-USE `ga_malamart`;
+USE `c372-005_team3`;
 -- MySQL dump 10.13  Distrib 8.0.42, for Win64 (x86_64)
 --
 -- Host: localhost    Database: ga_malamart
@@ -189,7 +189,7 @@ CREATE TABLE `payment` (
   `payment_id` bigint NOT NULL AUTO_INCREMENT,
   `order_id` int NOT NULL,
   `user_id` int NOT NULL,
-  `method` enum('CARD','COD') NOT NULL,
+  `method` enum('CARD','COD','PAYPAL') NOT NULL,
   `provider` varchar(50) NOT NULL,
   `currency` char(3) NOT NULL DEFAULT 'SGD',
   `amount_authorized` decimal(10,2) NOT NULL DEFAULT '0.00',
@@ -269,7 +269,7 @@ DROP TABLE IF EXISTS `payment_method`;
 CREATE TABLE `payment_method` (
   `payment_method_id` bigint NOT NULL AUTO_INCREMENT,
   `user_id` int NOT NULL,
-  `method` enum('CARD','COD') NOT NULL,
+  `method` enum('CARD','COD','PAYPAL') NOT NULL,
   `provider` varchar(50) NOT NULL,
   `provider_pm_token` varchar(128) NOT NULL,
   `card_brand` varchar(20) DEFAULT NULL,
@@ -363,6 +363,38 @@ LOCK TABLES `refund` WRITE;
 UNLOCK TABLES;
 
 --
+-- Table structure for table `refund_item`
+--
+
+DROP TABLE IF EXISTS `refund_item`;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!50503 SET character_set_client = utf8mb4 */;
+CREATE TABLE `refund_item` (
+  `refund_item_id` bigint NOT NULL AUTO_INCREMENT,
+  `refund_id` bigint NOT NULL,
+  `order_item_id` int NOT NULL,
+  `quantity` int NOT NULL,
+  `amount` decimal(10,2) NOT NULL,
+  PRIMARY KEY (`refund_item_id`),
+  KEY `idx_refund_item_refund` (`refund_id`),
+  KEY `idx_refund_item_order_item` (`order_item_id`),
+  CONSTRAINT `refund_item_ibfk_1` FOREIGN KEY (`refund_id`) REFERENCES `refund` (`refund_id`) ON DELETE CASCADE,
+  CONSTRAINT `refund_item_ibfk_2` FOREIGN KEY (`order_item_id`) REFERENCES `order_item` (`order_item_id`) ON DELETE RESTRICT,
+  CONSTRAINT `refund_item_chk_1` CHECK ((`quantity` > 0)),
+  CONSTRAINT `refund_item_chk_2` CHECK ((`amount` >= 0))
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+/*!40101 SET character_set_client = @saved_cs_client */;
+
+--
+-- Dumping data for table `refund_item`
+--
+
+LOCK TABLES `refund_item` WRITE;
+/*!40000 ALTER TABLE `refund_item` DISABLE KEYS */;
+/*!40000 ALTER TABLE `refund_item` ENABLE KEYS */;
+UNLOCK TABLES;
+
+--
 -- Table structure for table `user_cart_items`
 --
 
@@ -443,10 +475,134 @@ CREATE TABLE `users` (
 
 LOCK TABLES `users` WRITE;
 /*!40000 ALTER TABLE `users` DISABLE KEYS */;
-INSERT INTO `users` VALUES (1,'admin','active','nelson','woodland','123321@gmail.com','12334567','$2b$10$qPWofls5vjX1dgA62JLbd.SkVr6hj5QL7ltHwaGpgH.ie9ODSw6OS',1,NULL,'2025-12-01','2026-12-01',1,_binary '�Z�\�t\���\�\�Tr�q Cbs~>�o\�_]���',_binary '���\n\�Z\� r��',_binary '�
-si\�˪�=L�\�',0,0,NULL,NULL,0,'2025-12-01 08:37:41','2025-12-01 08:40:14',NULL,'/images/1764549546970-images__1_.jpeg'),(2,'user','active','liew','woodland','liew@local','98590528','$2b$10$rfkGBYM6ZBXjbDM37RSF/enEhn7eLRy4IC3Pe8lnMcXGOY337fiei',0,NULL,NULL,NULL,1,_binary 'Eڠ�&u��8�H\�uX�{���}~\�.mQ�E\�!�N',_binary '�@�D>�\�֖y',_binary '��0d
-\�A\�!��l��',0,0,NULL,NULL,0,'2025-12-01 08:39:47','2025-12-02 10:06:17',NULL,'/images/1764641065769-download.jpeg');
+INSERT INTO `users` VALUES (1,'admin','active','nelson','woodland','123321@gmail.com','12334567','$2b$10$qPWofls5vjX1dgA62JLbd.SkVr6hj5QL7ltHwaGpgH.ie9ODSw6OS',1,NULL,'2025-12-01','2026-12-01',1,_binary '�Z�\�t\���\�\�Tr�q Cbs~>�o\�_]���',_binary '���\n\�Z\� r��',_binary '�si\�˪�=L�\�',0,0,NULL,NULL,0,'2025-12-01 08:37:41','2025-12-01 08:40:14',NULL,'/images/1764549546970-images__1_.jpeg'),(2,'user','active','liew','woodland','liew@local','98590528','$2b$10$rfkGBYM6ZBXjbDM37RSF/enEhn7eLRy4IC3Pe8lnMcXGOY337fiei',0,NULL,NULL,NULL,1,_binary 'Eڠ�&u��8�H\�uX�{���}~\�.mQ�E\�!�N',_binary '�@�D>�\�֖y',_binary '��0d\�A\�!��l��',0,0,NULL,NULL,0,'2025-12-01 08:39:47','2025-12-02 10:06:17',NULL,'/images/1764641065769-download.jpeg');
 /*!40000 ALTER TABLE `users` ENABLE KEYS */;
 UNLOCK TABLES;
 
 --
+-- Temporary view structure for view `v_active_members`
+--
+
+DROP TABLE IF EXISTS `v_active_members`;
+/*!50001 DROP VIEW IF EXISTS `v_active_members`*/;
+SET @saved_cs_client     = @@character_set_client;
+/*!50503 SET character_set_client = utf8mb4 */;
+/*!50001 CREATE VIEW `v_active_members` AS SELECT 
+ 1 AS `user_id`,
+ 1 AS `name`,
+ 1 AS `contact_number`,
+ 1 AS `plan_id`,
+ 1 AS `member_since`,
+ 1 AS `member_expires`*/;
+SET character_set_client = @saved_cs_client;
+
+--
+-- Temporary view structure for view `v_active_membership_plans`
+--
+
+DROP TABLE IF EXISTS `v_active_membership_plans`;
+/*!50001 DROP VIEW IF EXISTS `v_active_membership_plans`*/;
+SET @saved_cs_client     = @@character_set_client;
+/*!50503 SET character_set_client = utf8mb4 */;
+/*!50001 CREATE VIEW `v_active_membership_plans` AS SELECT 
+ 1 AS `plan_id`,
+ 1 AS `name`,
+ 1 AS `discount_type`,
+ 1 AS `discount_value`,
+ 1 AS `min_spent`,
+ 1 AS `duration_days`*/;
+SET character_set_client = @saved_cs_client;
+
+--
+-- Temporary view structure for view `v_sales_by_date`
+--
+
+DROP TABLE IF EXISTS `v_sales_by_date`;
+/*!50001 DROP VIEW IF EXISTS `v_sales_by_date`*/;
+SET @saved_cs_client     = @@character_set_client;
+/*!50503 SET character_set_client = utf8mb4 */;
+/*!50001 CREATE VIEW `v_sales_by_date` AS SELECT 
+ 1 AS `order_date`,
+ 1 AS `orders_count`,
+ 1 AS `subtotal_sum`,
+ 1 AS `discount_sum`,
+ 1 AS `total_sum`*/;
+SET character_set_client = @saved_cs_client;
+
+--
+-- Final view structure for view `v_active_members`
+--
+
+/*!50001 DROP VIEW IF EXISTS `v_active_members`*/;
+/*!50001 SET @saved_cs_client          = @@character_set_client */;
+/*!50001 SET @saved_cs_results         = @@character_set_results */;
+/*!50001 SET @saved_col_connection     = @@collation_connection */;
+/*!50001 SET character_set_client      = utf8mb4 */;
+/*!50001 SET character_set_results     = utf8mb4 */;
+/*!50001 SET collation_connection      = utf8mb4_0900_ai_ci */;
+/*!50001 CREATE ALGORITHM=UNDEFINED */
+/*!50013 DEFINER=`root`@`localhost` SQL SECURITY DEFINER */
+/*!50001 VIEW `v_active_members` AS select `u`.`user_id` AS `user_id`,`u`.`name` AS `name`,`u`.`contact_number` AS `contact_number`,`u`.`plan_id` AS `plan_id`,`u`.`member_since` AS `member_since`,`u`.`member_expires` AS `member_expires` from `users` `u` where ((`u`.`is_member` = 1) and (`u`.`member_expires` is not null) and (`u`.`member_expires` >= curdate())) */;
+/*!50001 SET character_set_client      = @saved_cs_client */;
+/*!50001 SET character_set_results     = @saved_cs_results */;
+/*!50001 SET collation_connection      = @saved_col_connection */;
+
+--
+-- Final view structure for view `v_active_membership_plans`
+--
+
+/*!50001 DROP VIEW IF EXISTS `v_active_membership_plans`*/;
+/*!50001 SET @saved_cs_client          = @@character_set_client */;
+/*!50001 SET @saved_cs_results         = @@character_set_results */;
+/*!50001 SET @saved_col_connection     = @@collation_connection */;
+/*!50001 SET character_set_client      = utf8mb4 */;
+/*!50001 SET character_set_results     = utf8mb4 */;
+/*!50001 SET collation_connection      = utf8mb4_0900_ai_ci */;
+/*!50001 CREATE ALGORITHM=UNDEFINED */
+/*!50013 DEFINER=`root`@`localhost` SQL SECURITY DEFINER */
+/*!50001 VIEW `v_active_membership_plans` AS select `membership_plan`.`plan_id` AS `plan_id`,`membership_plan`.`name` AS `name`,`membership_plan`.`discount_type` AS `discount_type`,`membership_plan`.`discount_value` AS `discount_value`,`membership_plan`.`min_spent` AS `min_spent`,`membership_plan`.`duration_days` AS `duration_days` from `membership_plan` where (`membership_plan`.`active` = 1) */;
+/*!50001 SET character_set_client      = @saved_cs_client */;
+/*!50001 SET character_set_results     = @saved_cs_results */;
+/*!50001 SET collation_connection      = @saved_col_connection */;
+
+--
+-- Final view structure for view `v_sales_by_date`
+--
+
+/*!50001 DROP VIEW IF EXISTS `v_sales_by_date`*/;
+/*!50001 SET @saved_cs_client          = @@character_set_client */;
+/*!50001 SET @saved_cs_results         = @@character_set_results */;
+/*!50001 SET @saved_col_connection     = @@collation_connection */;
+/*!50001 SET character_set_client      = utf8mb4 */;
+/*!50001 SET character_set_results     = utf8mb4 */;
+/*!50001 SET collation_connection      = utf8mb4_0900_ai_ci */;
+/*!50001 CREATE ALGORITHM=UNDEFINED */
+/*!50013 DEFINER=`root`@`localhost` SQL SECURITY DEFINER */
+/*!50001 VIEW `v_sales_by_date` AS select cast(`o`.`created_at` as date) AS `order_date`,count(0) AS `orders_count`,sum(`o`.`subtotal_amount`) AS `subtotal_sum`,sum(`o`.`discount_amount`) AS `discount_sum`,sum(`o`.`total_amount`) AS `total_sum` from `orders` `o` group by cast(`o`.`created_at` as date) */;
+/*!50001 SET character_set_client      = @saved_cs_client */;
+/*!50001 SET character_set_results     = @saved_cs_results */;
+/*!50001 SET collation_connection      = @saved_col_connection */;
+/*!40103 SET TIME_ZONE=@OLD_TIME_ZONE */;
+
+/*!40101 SET SQL_MODE=@OLD_SQL_MODE */;
+/*!40014 SET FOREIGN_KEY_CHECKS=@OLD_FOREIGN_KEY_CHECKS */;
+/*!40014 SET UNIQUE_CHECKS=@OLD_UNIQUE_CHECKS */;
+/*!40101 SET CHARACTER_SET_CLIENT=@OLD_CHARACTER_SET_CLIENT */;
+/*!40101 SET CHARACTER_SET_RESULTS=@OLD_CHARACTER_SET_RESULTS */;
+/*!40101 SET COLLATION_CONNECTION=@OLD_COLLATION_CONNECTION */;
+/*!40111 SET SQL_NOTES=@OLD_SQL_NOTES */;
+
+-- Dump completed on 2025-12-02 13:58:58
+DROP TABLE IF EXISTS paynow_invoice;
+
+ALTER TABLE payment
+  DROP COLUMN paynow_reference,
+  DROP COLUMN paynow_qr_url,
+  DROP COLUMN paynow_expires_at,
+  MODIFY method ENUM('CARD','COD') NOT NULL;
+
+ALTER TABLE payment_method
+  MODIFY method ENUM('CARD','COD') NOT NULL;
+ALTER TABLE product
+  ADD COLUMN is_slider TINYINT(1) NOT NULL DEFAULT 0;
+UPDATE product SET is_slider = 0;
