@@ -1,5 +1,60 @@
 const db = require('../db');
 
+exports.createOrder = (userId, subtotal, discount, total, cartItems) => {
+  return new Promise((resolve, reject) => {
+    // Start transaction
+    db.beginTransaction((err) => {
+      if (err) return reject(err);
+
+      // Insert order
+      const orderSql = `INSERT INTO orders (user_id, subtotal_amount, discount_amount, total_amount, status, contains_membership, created_at)
+                        VALUES (?, ?, ?, ?, 'paid', 0, NOW())`;
+      db.query(orderSql, [userId, subtotal, discount, total], (err, result) => {
+        if (err) {
+          return db.rollback(() => reject(err));
+        }
+
+        const orderId = result.insertId;
+
+        // Insert order items
+        if (!cartItems || !cartItems.length) {
+          return db.commit((commitErr) => {
+            if (commitErr) {
+              return db.rollback(() => reject(commitErr));
+            }
+            resolve(orderId);
+          });
+        }
+
+        const itemPromises = cartItems.map(item => {
+          return new Promise((resolveItem, rejectItem) => {
+            const itemSql = `INSERT INTO order_item (order_id, product_id, quantity, unit_price, line_total)
+                             VALUES (?, ?, ?, ?, ?)`;
+            const lineTotal = Number(item.quantity) * Number(item.price);
+            db.query(itemSql, [orderId, item.productId, item.quantity, item.price, lineTotal], (err) => {
+              if (err) rejectItem(err);
+              else resolveItem();
+            });
+          });
+        });
+
+        Promise.all(itemPromises)
+          .then(() => {
+            db.commit((commitErr) => {
+              if (commitErr) {
+                return db.rollback(() => reject(commitErr));
+              }
+              resolve(orderId);
+            });
+          })
+          .catch((itemErr) => {
+            db.rollback(() => reject(itemErr));
+          });
+      });
+    });
+  });
+};
+
 exports.getOrdersByUser = (userId) => {
   return new Promise((resolve, reject) => {
     const sql = `SELECT order_id, user_id, subtotal_amount, discount_amount, total_amount, status, created_at
@@ -27,7 +82,7 @@ exports.getItemsForOrders = (orderIds) => {
   });
 };
 
-const STATUS_OPTIONS = ['Pending', 'Preparing', 'Ready', 'Completed', 'Cancelled', 'Refunded'];
+const STATUS_OPTIONS = ['awaiting_payment', 'paid', 'shipped', 'completed', 'cancelled', 'refunded'];
 
 exports.adminList = ({ q, status } = {}) => {
   return new Promise((resolve, reject) => {

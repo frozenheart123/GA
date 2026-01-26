@@ -4,7 +4,11 @@ exports.summary = ({ from, to }) => {
   return new Promise((resolve) => {
     const out = { gross: 0, orders: 0, avg: 0 };
     const sqlRange = 'WHERE created_at BETWEEN ? AND ?';
-    db.query(`SELECT IFNULL(SUM(total_amount),0) AS gross, COUNT(*) AS c FROM orders ${sqlRange}`, [from, to], (e, r) => {
+    const sql = `SELECT IFNULL(SUM(total_amount),0) AS gross, COUNT(*) AS c FROM orders ${sqlRange}`;
+    console.log('adminReports.summary query:', sql, 'params:', [from, to]);
+    db.query(sql, [from, to], (e, r) => {
+      if (e) console.error('adminReports.summary error:', e);
+      console.log('adminReports.summary result:', r);
       const gross = r && r[0] ? Number(r[0].gross) : 0;
       const c = r && r[0] ? Number(r[0].c) : 0;
       out.gross = gross; out.orders = c; out.avg = c ? (gross / c) : 0;

@@ -33,6 +33,7 @@ const paymentController = require('./Controller/paymentController');
 const ordersController = require('./Controller/ordersController');
 const accountController = require('./Controller/accountController');
 const UserModel = require('./models/user');
+const Order = require('./models/order');
 const cartitems = require('./models/cartitems');
 const speakeasy = require('speakeasy');
 const QRCode = require('qrcode');
@@ -248,7 +249,7 @@ app.post('/checkout/confirm', (req, res) => {
 // GET /checkout_success - Display success page after payment
 app.get('/checkout_success', (req, res) => {
   const isMember = !!(req.session.user && req.session.user.is_member);
-  // Get payment details from query params
+  // Get payment details from query params or session
   const amount = parseFloat(req.query.amount) || 0;
   const cashback = isMember ? amount * 0.05 : 0;
   const totals = {
@@ -257,13 +258,14 @@ app.get('/checkout_success', (req, res) => {
     cashback: cashback,
     total: amount
   };
+  const orderId = req.query.orderId || req.session.lastOrderId || null;
   const paymentInfo = {
     name: req.session.user ? req.session.user.name : 'Guest',
     email: req.session.user ? req.session.user.email : '',
     method: req.query.paymentMethod || 'PayPal',
     reference: req.query.reference || 'N/A',
   };
-  return res.render('checkout_success', { totals, isMember, paymentInfo });
+  return res.render('checkout_success', { totals, isMember, paymentInfo, orderId });
 });
 
 // PayPal API Routes
@@ -310,7 +312,8 @@ app.get('/admin/reports', requireAdmin, adminReportsController.dashboard);
 
 // Orders
 app.get('/orders', requireAuth, ordersController.getMyOrders);
-// Account
+app.get('/orders/:orderId', requireAuth, ordersController.getOrderReceipt);
+
 app.get('/account', requireAuth, accountController.getAccount);
 app.post('/account', requireAuth, accountController.postAccount);
 app.post('/account/header', requireAuth, upload.single('header_image'), accountController.postHeader);

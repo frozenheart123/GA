@@ -145,22 +145,25 @@ exports.createOrder = async (req, res) => {
       return res.status(400).json({ error: "Cart is empty", message: "No items in cart" });
     }
 
-    const totalAmount = items.reduce((sum, item) => sum + Number(item.total || item.price * item.quantity || 0), 0);
+    // Apply membership discount before sending amount to PayPal
+    const isMember = !!(req.session?.user && req.session.user.is_member);
+    const totals = computeCartTotals(items, isMember);
+    const payableAmount = Number((totals.total || 0).toFixed(2));
 
-    console.log('createOrder: calculated totalAmount', { totalAmount, itemsCount: items.length });
+    console.log('createOrder: calculated totals with membership', { isMember, totals, payableAmount });
 
-    if (!totalAmount || totalAmount <= 0) {
-      console.error('createOrder: refusing to create PayPal order because totalAmount is not positive', {
-        totalAmount,
+    if (!payableAmount || payableAmount <= 0) {
+      console.error('createOrder: refusing to create PayPal order because payableAmount is not positive', {
+        payableAmount,
         itemsCount: items.length
       });
       return res.status(400).json({ error: 'Cart total must be greater than zero', message: 'Invalid cart total' });
     }
 
-    console.log('createOrder: Creating PayPal order for amount:', totalAmount);
+    console.log('createOrder: Creating PayPal order for amount:', payableAmount);
 
     // Create PayPal order
-    const order = await paypal.createOrder(totalAmount.toFixed(2));
+    const order = await paypal.createOrder(payableAmount.toFixed(2));
 
     if (!order || !order.id) {
       console.error('createOrder: PayPal createOrder returned unexpected payload:', order);
@@ -289,74 +292,73 @@ exports.pay = async (req, res) => {
 
     console.log('pay: Found', items.length, 'cart items for userId:', userId);
 
-    // Calculate total amount
-    const totalAmount = items.reduce((sum, item) => sum + Number(item.total || item.price * item.quantity || 0), 0);
+    // Apply membership discount to totals so DB and PayPal stay in sync
+    const isMember = !!(req.session?.user && req.session.user.is_member);
+    const totals = computeCartTotals(items, isMember);
+    const subtotalAmount = Number((totals.subtotal || 0).toFixed(2));
+    const discountAmount = Number((totals.cashback || 0).toFixed(2));
+    const payableAmount = Number((totals.total || 0).toFixed(2));
 
-    console.log('pay: Total amount calculated:', totalAmount);
+    console.log('pay: Totals with membership applied', { isMember, subtotalAmount, discountAmount, payableAmount });
 
-    // Use provided address, fallback to user profile
-    const providedAddress = (req.body.address || '').trim();
-    console.log('pay: Provided address from request:', providedAddress);
+    if (!payableAmount || payableAmount <= 0) {
+      console.error('pay: Computed payableAmount is not positive', { payableAmount });
+      return res.status(400).json({ error: 'Cart total must be greater than zero', message: 'Invalid cart total' });
+    }
+
+    // Warn if captured amount does not match what we computed (should not happen if createOrder used same totals)
+    const capturedAmount = Number(capture.purchase_units[0].payments.captures[0].amount.value);
+    if (Math.abs(capturedAmount - payableAmount) > 0.01) {
+      console.warn('pay: Captured amount differs from computed payable', { capturedAmount, payableAmount });
+    }
 
     // Order creation in database
     let dbOrderId = null;
-    
+
+    // Prepare order items once for DB insert and stock updates
+    const orderItems = items.map(item => ({
+      productId: item.productId || item.product_id,
+      quantity: item.quantity,
+      price: item.price,
+      total: item.total || (item.price * item.quantity)
+    }));
+
     // Check if Orders methods exist
     console.log('pay: Checking if Orders.createOrder exists:', typeof Orders.createOrder);
-    console.log('pay: Checking if Orders.addOrderItems exists:', typeof Orders.addOrderItems);
-    
     if (Orders && Orders.createOrder && typeof Orders.createOrder === 'function') {
       try {
         console.log('pay: Creating order in database for userId:', userId);
-        const orderResult = await Orders.createOrder(userId, totalAmount, providedAddress || null);
-        console.log('pay: Order result from DB:', orderResult);
-        dbOrderId = orderResult && orderResult.insertId ? orderResult.insertId : null;
+        dbOrderId = await Orders.createOrder(userId, subtotalAmount, discountAmount, payableAmount, orderItems);
         console.log('pay: Order created in database with ID:', dbOrderId);
-
-        // Prepare order items
-        const orderItems = items.map(item => ({
-          productId: item.productId || item.product_id,
-          quantity: item.quantity,
-          price: item.price,
-          total: item.total || (item.price * item.quantity)
-        }));
-
-        console.log('pay: Preparing to add order items:', orderItems);
-
-        // Add order items to order_details if method exists
-        if (Orders.addOrderItems && typeof Orders.addOrderItems === 'function') {
-          await Orders.addOrderItems(dbOrderId, orderItems, providedAddress || null);
-          console.log('pay: Order items added');
-        }
-
-        // Decrement stock for each product ordered
-        console.log('pay: Order items added. Now decrementing stock for', orderItems.length, 'items');
-        const failedDecrements = [];
-        for (let item of orderItems) {
-          try {
-            console.log(`[pay] Decrementing productId ${item.productId || item.product_id} by ${item.quantity}`);
-            const result = await decrementProductStock(item.productId || item.product_id, item.quantity);
-            if (!result || !result.affectedRows || result.affectedRows === 0) {
-              console.error(`[pay] Stock decrement failed for productId ${item.productId || item.product_id}`);
-              failedDecrements.push({ productId: item.productId || item.product_id, quantity: item.quantity });
-            } else {
-              console.log(`[pay] ✓ Stock decremented for productId ${item.productId || item.product_id}`);
-            }
-          } catch (decrementErr) {
-            console.error(`[pay] Error decrementing stock for productId ${item.productId || item.product_id}:`, decrementErr);
-            failedDecrements.push({ productId: item.productId || item.product_id, quantity: item.quantity, error: decrementErr.message });
-          }
-        }
-
-        if (failedDecrements.length > 0) {
-          console.warn(`[pay] ${failedDecrements.length} stock decrements failed:`, failedDecrements);
-        }
       } catch (orderErr) {
         console.warn('pay: Error creating order in database (continuing anyway):', orderErr.message);
         // Don't fail - we'll just clear the cart
       }
     } else {
       console.warn('pay: Orders.createOrder method not found - skipping order creation');
+    }
+
+    // Decrement stock for each product ordered
+    console.log('pay: Order items prepared. Now decrementing stock for', orderItems.length, 'items');
+    const failedDecrements = [];
+    for (let item of orderItems) {
+      try {
+        console.log(`[pay] Decrementing productId ${item.productId || item.product_id} by ${item.quantity}`);
+        const result = await decrementProductStock(item.productId || item.product_id, item.quantity);
+        if (!result || !result.affectedRows || result.affectedRows === 0) {
+          console.error(`[pay] Stock decrement failed for productId ${item.productId || item.product_id}`);
+          failedDecrements.push({ productId: item.productId || item.product_id, quantity: item.quantity });
+        } else {
+          console.log(`[pay] ✓ Stock decremented for productId ${item.productId || item.product_id}`);
+        }
+      } catch (decrementErr) {
+        console.error(`[pay] Error decrementing stock for productId ${item.productId || item.product_id}:`, decrementErr);
+        failedDecrements.push({ productId: item.productId || item.product_id, quantity: item.quantity, error: decrementErr.message });
+      }
+    }
+
+    if (failedDecrements.length > 0) {
+      console.warn(`[pay] ${failedDecrements.length} stock decrements failed:`, failedDecrements);
     }
 
     // Get cart item IDs to remove
