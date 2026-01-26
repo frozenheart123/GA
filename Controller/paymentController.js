@@ -52,6 +52,8 @@ exports.generateCheckout = async (req, res, next) => {
       cart,
       user: req.session?.user || null,
       paypalClientId: process.env.PAYPAL_CLIENT_ID || '',
+      paynowQr: null, // PayNow QR not generated yet
+      reference: null, // Reference not generated yet
     });
   } catch (err) {
     next(err);
