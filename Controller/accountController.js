@@ -3,6 +3,7 @@ const User = require('../models/user');
 const mfa = require('../utils/mfa');
 const MfaModel = require('../models/mfa');
 const speakeasy = require('speakeasy');
+const QRCode = require('qrcode');
 const Reports = require('../models/adminReports');
 
 exports.getAccount = async (req, res) => {
@@ -20,6 +21,7 @@ exports.getAccount = async (req, res) => {
     } catch (_) { profile.avatar_url = req.session.user.avatar_url || null; }
     const auth = await User.getAuthByIdFull(uid);
     const remaining = await MfaModel.getRemainingCount(uid).catch(() => 0);
+    let mfaQrDataUrl = null;
     // If MFA is disabled, prepare a new secret for enrollment
     let mfaSetup = null;
     if (!auth || !auth.mfa_totp_enabled) {
@@ -29,6 +31,21 @@ exports.getAccount = async (req, res) => {
       const otpauth = mfa.buildOtpAuthUri({ issuer, accountName, secretBase32: secret });
       req.session.mfa_setup_secret = secret;
       mfaSetup = { secret, otpauth };
+    } else if (auth && auth.mfa_totp_enabled && auth.mfa_totp_secret_enc) {
+      const hasIv = mfa.hasNonEmpty(auth.mfa_totp_iv);
+      const hasTag = mfa.hasNonEmpty(auth.mfa_totp_tag);
+      let secret = (hasIv && hasTag)
+        ? mfa.decryptSecretParts(auth.mfa_totp_secret_enc, auth.mfa_totp_iv, auth.mfa_totp_tag)
+        : mfa.decryptSecret(auth.mfa_totp_secret_enc);
+      if (!secret && !hasIv && !hasTag) {
+        secret = mfa.decryptSecret(auth.mfa_totp_secret_enc);
+      }
+      if (secret) {
+        const issuer = 'GA_Malamart';
+        const accountName = profile ? profile.name : String(uid);
+        const otpauth = mfa.buildOtpAuthUri({ issuer, accountName, secretBase32: secret });
+        mfaQrDataUrl = await QRCode.toDataURL(otpauth);
+      }
     }
     const headerPath = req.session.user.header_image || null;
     const backupPreview = req.session.mfa_backup_codes_preview || null;
@@ -52,7 +69,7 @@ exports.getAccount = async (req, res) => {
         rangeLabel: `${range.from.split(' ')[0]} - ${range.to.split(' ')[0]}`,
       };
     }
-    res.render('account', { profile, headerPath, saved: !!req.query.saved, changed: !!req.query.changed, error: null, mfa: auth || { mfa_totp_enabled: 0 }, mfaSetup, backupRemaining: remaining, backupPreview, adminProfit });
+    res.render('account', { profile, headerPath, saved: !!req.query.saved, changed: !!req.query.changed, error: null, mfa: auth || { mfa_totp_enabled: 0 }, mfaSetup, mfaQrDataUrl, backupRemaining: remaining, backupPreview, adminProfit });
   } catch (e) {
     console.error('getAccount error:', e);
     res.status(500).send('Internal Server Error');
@@ -65,20 +82,34 @@ exports.postAccount = async (req, res) => {
     const { name, address, contact_number, email, new_password, confirm_password, totp_code } = req.body;
     const auth = await User.getAuthByIdFull(uid);
 
-    // Update basic profile fields (no TOTP required)
-    await User.updateProfile({ user_id: uid, name, address, contact_number, email });
-
-    // Keep session name in sync
-    req.session.user.name = name;
+    const hasProfileUpdate = ['name', 'address', 'contact_number', 'email'].some(
+      (key) => typeof req.body[key] !== 'undefined'
+    );
+    if (hasProfileUpdate) {
+      const existing = await User.getById(uid);
+      const safeName = typeof name === 'undefined' ? existing.name : name;
+      const safeAddress = typeof address === 'undefined' ? existing.address : address;
+      const safeContact = typeof contact_number === 'undefined' ? existing.contact_number : contact_number;
+      const safeEmail = typeof email === 'undefined' ? existing.email : email;
+      // Update basic profile fields (no TOTP required)
+      await User.updateProfile({ user_id: uid, name: safeName, address: safeAddress, contact_number: safeContact, email: safeEmail });
+      // Keep session name in sync
+      req.session.user.name = safeName;
+    }
 
     // Optional password change (TOTP required when MFA enabled)
     if ((new_password && new_password.length) || (confirm_password && confirm_password.length)) {
       if (auth && auth.mfa_totp_enabled) {
-        const secret = (auth.mfa_totp_iv && auth.mfa_totp_tag)
+        const hasIv = mfa.hasNonEmpty(auth.mfa_totp_iv);
+        const hasTag = mfa.hasNonEmpty(auth.mfa_totp_tag);
+        let secret = (hasIv && hasTag)
           ? mfa.decryptSecretParts(auth.mfa_totp_secret_enc, auth.mfa_totp_iv, auth.mfa_totp_tag)
           : mfa.decryptSecret(auth.mfa_totp_secret_enc);
+        if (!secret && !hasIv && !hasTag) {
+          secret = mfa.decryptSecret(auth.mfa_totp_secret_enc);
+        }
         let okMfa = false;
-        if (totp_code) {
+        if (totp_code && secret) {
           const token = String(totp_code).trim();
           okMfa = speakeasy.totp.verify({ secret, encoding: 'base32', token, window: 1 });
           if (!okMfa) okMfa = await MfaModel.consumeIfValid(uid, token);
@@ -198,11 +229,16 @@ exports.postMfaDisable = async (req, res) => {
     const { totp_code } = req.body;
     const auth = await User.getAuthByIdFull(uid);
     if (!auth || !auth.mfa_totp_enabled) return res.redirect('/account');
-    const secret = (auth.mfa_totp_iv && auth.mfa_totp_tag)
+    const hasIv = mfa.hasNonEmpty(auth.mfa_totp_iv);
+    const hasTag = mfa.hasNonEmpty(auth.mfa_totp_tag);
+    let secret = (hasIv && hasTag)
       ? mfa.decryptSecretParts(auth.mfa_totp_secret_enc, auth.mfa_totp_iv, auth.mfa_totp_tag)
       : mfa.decryptSecret(auth.mfa_totp_secret_enc);
+    if (!secret && !hasIv && !hasTag) {
+      secret = mfa.decryptSecret(auth.mfa_totp_secret_enc);
+    }
     let okMfa = false;
-    if (totp_code) {
+    if (totp_code && secret) {
       const token = String(totp_code).trim();
       okMfa = speakeasy.totp.verify({ secret, encoding: 'base32', token, window: 1 });
       if (!okMfa) okMfa = await MfaModel.consumeIfValid(uid, token);

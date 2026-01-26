@@ -32,7 +32,7 @@ exports.dashboard = async (req, res) => {
       Product.counts(),
       Product.adminList({ q, category })
     ]);
-    res.render('admin_products', { counts, list, q: q || '', category: category || 'All' });
+    res.render('admin_products', { counts, list, q: q || '', category: category || 'All', sliderAlert: req.query.slider || '' });
   } catch (e) {
     console.error('admin products dashboard error:', e);
     res.status(500).send('Internal Server Error');
@@ -128,5 +128,20 @@ exports.postToggle = async (req, res) => {
   } catch (e) {
     console.error('toggle availability error:', e);
     res.redirect('/admin/products');
+  }
+};
+
+exports.postSlider = async (req, res) => {
+  try {
+    const id = req.params.id;
+    const enable = String(req.body.enable || '0') === '1';
+    const result = await Product.setSlider(id, enable);
+    if (!result.ok && result.reason === 'limit') {
+      return res.redirect('/admin/products?slider=limit');
+    }
+    return res.redirect('/admin/products');
+  } catch (e) {
+    console.error('slider toggle error:', e);
+    return res.redirect('/admin/products');
   }
 };

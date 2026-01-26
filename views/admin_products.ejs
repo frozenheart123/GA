@@ -94,9 +94,15 @@
 </script>
 <main class="container">
   <h1 style="margin:8px 0 8px 0">Products Dashboard</h1>
+  <% if (sliderAlert === 'limit') { %>
+    <div class="card" style="margin:8px 0 12px 0;border-color:#fecdd3;background:#fff1f2">
+      <div class="card-body" style="color:#991b1b;font-weight:800">You have reached the max slider (6 items).</div>
+    </div>
+  <% } %>
   <section class="grid cols-3">
     <div class="card"><div class="card-body"><div>Active</div><div style="font-weight:900;font-size:1.6rem"><%= counts.active %></div></div></div>
     <div class="card"><div class="card-body"><div>Low Stock (&lt; 20)</div><div style="font-weight:900;font-size:1.6rem"><%= counts.low %></div></div></div>
+    <div class="card"><div class="card-body"><div>Slider</div><div style="font-weight:900;font-size:1.6rem"><%= counts.slider %> / 6</div></div></div>
   </section>
 
   <section class="card" style="margin-top:16px">
@@ -116,7 +122,7 @@
     </div>
     <div class="card-body" style="padding-top:0">
       <table>
-        <thead><tr><th>Image</th><th>Name</th><th>Category</th><th>Price</th><th>Qty</th><th>Status</th><th>Actions</th></tr></thead>
+        <thead><tr><th>Image</th><th>Name</th><th>Category</th><th>Price</th><th>Qty</th><th>Status</th><th>Slider</th><th>Actions</th></tr></thead>
         <tbody>
         <% if (list && list.length) { %>
           <% list.forEach(function(p){ %>
@@ -133,10 +139,17 @@
               <td>$<%= Number(p.price).toFixed(2) %></td>
               <td><%= p.quantity %></td>
               <td><%= p.quantity>0 ? 'Active' : 'Out of stock' %></td>
+              <td>
+                <span class="pill"><%= p.is_slider ? 'On' : 'Off' %></span>
+              </td>
               <td class="row">
                 <a class="btn" href="/admin/products/<%= p.product_id %>/edit">Edit</a>
                 <form method="post" action="/admin/products/<%= p.product_id %>/toggle">
                   <button class="btn" type="submit"><%= p.quantity>0 ? 'Deactivate' : 'Activate' %></button>
+                </form>
+                <form method="post" action="/admin/products/<%= p.product_id %>/slider" class="slider-form" data-is-slider="<%= p.is_slider ? '1' : '0' %>">
+                  <input type="hidden" name="enable" value="<%= p.is_slider ? '0' : '1' %>">
+                  <button class="btn" type="submit"><%= p.is_slider ? 'Remove Slider' : 'Set Slider' %></button>
                 </form>
                 <form method="post" action="/admin/products/<%= p.product_id %>/delete" onsubmit="return confirm('Delete this product?')">
                   <button class="btn" type="submit">Delete</button>
@@ -145,11 +158,25 @@
             </tr>
           <% }) %>
         <% } else { %>
-          <tr><td colspan="7" style="color:#6b7280">No products</td></tr>
+          <tr><td colspan="8" style="color:#6b7280">No products</td></tr>
         <% } %>
         </tbody>
       </table>
     </div>
   </section>
 </main>
+<script>
+  (function(){
+    const sliderCount = Number(<%- JSON.stringify(counts.slider || 0) %>);
+    document.querySelectorAll('.slider-form').forEach(function(form){
+      form.addEventListener('submit', function(ev){
+        const isSlider = form.dataset.isSlider === '1';
+        if (!isSlider && sliderCount >= 6) {
+          ev.preventDefault();
+          alert('You have reach max slider');
+        }
+      });
+    });
+  })();
+</script>
 </body></html>

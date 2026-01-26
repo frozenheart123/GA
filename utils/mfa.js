@@ -111,12 +111,21 @@ function buildOtpAuthUri({ issuer, accountName, secretBase32, digits = 6, period
   return `otpauth://totp/${label}?${params.toString()}`;
 }
 
+function hasNonEmpty(value) {
+  if (value == null) return false;
+  if (Buffer.isBuffer(value)) return value.length > 0;
+  if (ArrayBuffer.isView(value)) return value.byteLength > 0;
+  if (typeof value === 'string') return value.trim().length > 0;
+  return true;
+}
+
 module.exports = {
   generateBase32Secret,
   verifyTotp,
   encryptSecret,
   decryptSecret,
   buildOtpAuthUri,
+  hasNonEmpty,
 };
 
 // Extended helpers when storing IV and tag in separate DB columns
@@ -131,11 +140,15 @@ function encryptSecretParts(secretBase32) {
 
 function decryptSecretParts(ciphertext, iv, tag) {
   if (!ciphertext || !iv || !tag) return null;
-  const key = getKey();
-  const decipher = crypto.createDecipheriv('aes-256-gcm', key, Buffer.from(iv));
-  decipher.setAuthTag(Buffer.from(tag));
-  const pt = Buffer.concat([decipher.update(Buffer.from(ciphertext)), decipher.final()]);
-  return pt.toString('utf8');
+  try {
+    const key = getKey();
+    const decipher = crypto.createDecipheriv('aes-256-gcm', key, Buffer.from(iv));
+    decipher.setAuthTag(Buffer.from(tag));
+    const pt = Buffer.concat([decipher.update(Buffer.from(ciphertext)), decipher.final()]);
+    return pt.toString('utf8');
+  } catch (e) {
+    return null;
+  }
 }
 
 module.exports.encryptSecretParts = encryptSecretParts;

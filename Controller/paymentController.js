@@ -1,5 +1,3 @@
-const QRCode = require('qrcode');
-const paynowUtils = require('../utils/paynow');
 const cartitems = require('../models/cartitems');
 const { computeCartTotals, ensureCart } = require('./cartController');
 const Transaction = require("../models/transaction");
@@ -10,7 +8,7 @@ const productModel = require('../models/product');
 const UserModel = require('../models/user');
 const paypal = require('../services/paypal');
 
-exports.generatePayNowCheckout = async (req, res, next) => {
+exports.generateCheckout = async (req, res, next) => {
   try {
     const isMember = !!(req.session?.user && req.session.user.is_member);
     const userId = req.session?.user
@@ -47,22 +45,8 @@ exports.generatePayNowCheckout = async (req, res, next) => {
     }
 
     req.session.checkoutAmount = amount;
-    const reference = `PN${Date.now()}`.substring(0, 25);
-    const payload = paynowUtils.buildPayNowPayload({
-      amount,
-      proxyValue: process.env.PAYNOW_PROXY_VALUE || '98590528',
-      proxyType: process.env.PAYNOW_PROXY_TYPE || '0',
-      merchantName: process.env.PAYNOW_MERCHANT_NAME || 'MALAMART',
-      merchantCity: process.env.PAYNOW_MERCHANT_CITY || 'SINGAPORE',
-      reference,
-    });
-    console.log('PayNow payload:', payload);
-    paynowUtils.printTLV(payload);
-    const paynowQr = await QRCode.toDataURL(payload);
     res.render('checkout', {
       amount: amount.toFixed(2),
-      reference,
-      paynowQr,
       totals,
       isMember,
       cart,

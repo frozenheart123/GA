@@ -78,9 +78,7 @@
             <h2 style="margin:0;font-size:1.2rem">Shipping</h2>
             <span class="pill">Delivery 1-3 days</span>
           </div>
-          <form id="checkoutForm" method="POST" action="/checkout/confirm" class="stack" style="display:flex;flex-direction:column;gap:14px">
-            <input type="hidden" name="amount" value="<%= amount %>">
-            <input type="hidden" name="reference" value="<%= reference %>">
+          <form id="checkoutForm" method="POST" action="/checkout" class="stack" style="display:flex;flex-direction:column;gap:14px">
             <div class="row">
               <div style="flex:1;min-width:200px">
                 <label>Name</label>
