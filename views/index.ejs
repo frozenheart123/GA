@@ -260,15 +260,32 @@
       </div>
 
       <div class="stack">
-        <div class="card">
-          <img src="data:image/svg+xml;utf8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='900' height='500'%3E%3Crect width='100%25' height='100%25' fill='%23ffe6e6'/%3E%3Ctext x='50%25' y='50%25' dominant-baseline='middle' text-anchor='middle' font-size='42' fill='%23d14343' font-family='Arial'%3ESignature Mala Broth%3C/text%3E%3C/svg%3E" alt="">
-          <div class="card-body">
-            <div class="row" style="justify-content:space-between;align-items:center">
-              <strong>Signature Mala Broth</strong><span class="pill">Best Seller</span>
-            </div>
-            <span class="price">Medium &bull; $3.50</span>
+        <% if (sliderProducts && sliderProducts.length) { %>
+          <div class="card" id="signature-slider">
+            <% sliderProducts.forEach(function(p, idx){ %>
+              <% const sliderImg = p.image || "data:image/svg+xml;utf8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='900' height='500'%3E%3Crect width='100%25' height='100%25' fill='%23ffe6e6'/%3E%3Ctext x='50%25' y='50%25' dominant-baseline='middle' text-anchor='middle' font-size='42' fill='%23d14343' font-family='Arial'%3ESignature Pick%3C/text%3E%3C/svg%3E"; %>
+              <div class="slider-slide" data-index="<%= idx %>" style="<%= idx === 0 ? '' : 'display:none;' %>">
+                <img src="<%= sliderImg %>" alt="<%= p.name %>">
+                <div class="card-body">
+                  <div class="row" style="justify-content:space-between;align-items:center">
+                    <strong><%= p.name %></strong><span class="pill"><%= p.product_type || 'Signature' %></span>
+                  </div>
+                  <span class="price">$<%= Number(p.price || 0).toFixed(2) %></span>
+                </div>
+              </div>
+            <% }) %>
           </div>
-        </div>
+        <% } else { %>
+          <div class="card">
+            <img src="data:image/svg+xml;utf8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='900' height='500'%3E%3Crect width='100%25' height='100%25' fill='%23ffe6e6'/%3E%3Ctext x='50%25' y='50%25' dominant-baseline='middle' text-anchor='middle' font-size='42' fill='%23d14343' font-family='Arial'%3ESignature Mala Broth%3C/text%3E%3C/svg%3E" alt="">
+            <div class="card-body">
+              <div class="row" style="justify-content:space-between;align-items:center">
+                <strong>Signature Mala Broth</strong><span class="pill">Best Seller</span>
+              </div>
+              <span class="price">Medium &bull; $3.50</span>
+            </div>
+          </div>
+        <% } %>
       </div>
     </section>
 
@@ -342,7 +359,7 @@
       </div>
       <div class="card" style="padding:16px">
         <div class="row" style="align-items:center;gap:12px">
-          <span style="font-size:26px">&#9889;</span><div><strong>Fast Checkout</strong><div class="note">PayNow supported.</div></div>
+          <span style="font-size:26px">&#9889;</span><div><strong>Fast Checkout</strong><div class="note">Quick order flow.</div></div>
         </div>
       </div>
       <div class="card" style="padding:16px">
@@ -591,8 +608,19 @@
       });
     })();
   </script>
+  <script>
+    (function(){
+      const slider = document.getElementById('signature-slider');
+      if (!slider) return;
+      const slides = Array.from(slider.querySelectorAll('.slider-slide'));
+      if (slides.length < 2) return;
+      let idx = 0;
+      setInterval(function(){
+        slides[idx].style.display = 'none';
+        idx = (idx + 1) % slides.length;
+        slides[idx].style.display = '';
+      }, 4000);
+    })();
+  </script>
 </body>
 </html>
-
-
-

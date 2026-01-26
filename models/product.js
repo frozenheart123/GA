@@ -30,6 +30,26 @@ exports.getPopularProducts = () => {
   });
 };
 
+// Slider picks (admin curated)
+exports.getSliderProducts = () => {
+  return new Promise((resolve) => {
+    const sql = `
+      SELECT product_id, product_type, name, price, image, quantity
+      FROM product
+      WHERE is_slider = 1
+      ORDER BY product_id DESC
+      LIMIT 6
+    `;
+    db.query(sql, (err, rows) => {
+      if (err) {
+        console.error('getSliderProducts query error:', err && err.code ? err.code : err);
+        return resolve([]);
+      }
+      return resolve(rows || []);
+    });
+  });
+};
+
 // Browse products with optional filters
 exports.getAll = ({ type, minPrice, maxPrice } = {}) => {
   return new Promise((resolve, reject) => {
@@ -85,7 +105,7 @@ exports.adminList = ({ q, category } = {}) => {
       where.push('product_type = ?');
       params.push(String(category).trim().toLowerCase());
     }
-    const sql = `SELECT product_id, name, product_type, price, quantity, image
+    const sql = `SELECT product_id, name, product_type, price, quantity, image, is_slider
                  FROM product
                  ${where.length ? 'WHERE ' + where.join(' AND ') : ''}
                  ORDER BY product_id DESC`;
@@ -98,15 +118,38 @@ exports.adminList = ({ q, category } = {}) => {
 
 exports.counts = () => {
   return new Promise((resolve) => {
-    const result = { total: 0, active: 0, low: 0 };
+    const result = { total: 0, active: 0, low: 0, slider: 0 };
     db.query('SELECT COUNT(*) AS c FROM product', (e, r) => {
       result.total = r && r[0] ? r[0].c : 0;
       db.query('SELECT COUNT(*) AS c FROM product WHERE quantity > 0', (e2, r2) => {
         result.active = r2 && r2[0] ? r2[0].c : 0;
         db.query('SELECT COUNT(*) AS c FROM product WHERE quantity < 20', (e3, r3) => {
           result.low = r3 && r3[0] ? r3[0].c : 0;
-          resolve(result);
+          db.query('SELECT COUNT(*) AS c FROM product WHERE is_slider = 1', (e4, r4) => {
+            result.slider = r4 && r4[0] ? r4[0].c : 0;
+            resolve(result);
+          });
         });
+      });
+    });
+  });
+};
+
+exports.setSlider = (id, enabled) => {
+  return new Promise((resolve, reject) => {
+    if (!enabled) {
+      return db.query('UPDATE product SET is_slider = 0 WHERE product_id = ?', [id], (err, result) => {
+        if (err) return reject(err);
+        resolve({ ok: result.affectedRows > 0 });
+      });
+    }
+    db.query('SELECT COUNT(*) AS c FROM product WHERE is_slider = 1', (err, rows) => {
+      if (err) return reject(err);
+      const count = rows && rows[0] ? Number(rows[0].c) : 0;
+      if (count >= 6) return resolve({ ok: false, reason: 'limit' });
+      db.query('UPDATE product SET is_slider = 1 WHERE product_id = ?', [id], (e2, result) => {
+        if (e2) return reject(e2);
+        resolve({ ok: result.affectedRows > 0 });
       });
     });
   });
