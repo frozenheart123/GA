@@ -226,9 +226,7 @@
               <span>Total</span><strong>$<%= total.toFixed(2) %></strong>
             </div>
             <div style="margin-top:12px">
-              <form action="/checkout" method="POST" style="display:inline-block">
-                <button class="btn primary" type="submit" <%= (!cart || !cart.length) ? 'disabled' : '' %>>Checkout</button>
-              </form>
+              <a href="/checkout" class="btn primary" style="display:inline-block;text-align:center;text-decoration:none;<%= (!cart || !cart.length) ? 'pointer-events:none;opacity:0.5;' : '' %>">Checkout</a>
             </div>
             <p class="note" style="margin-top:10px">
               <%= isMember ? 'You already enjoy 5% cashback. Thank you for being a member!' : 'Tip: Join Membership for automatic 5% off.' %>

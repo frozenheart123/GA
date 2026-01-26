@@ -87,6 +87,13 @@ const CartController = {
         return res.redirect(req.get('Referrer') || req.get('Referer') || '/menu');
       }
 
+      // Check if product is available
+      const available = Number(product.quantity || 0);
+      if (available <= 0) {
+        req.flash && req.flash('error', 'Product is out of stock.');
+        return res.redirect(req.get('Referrer') || req.get('Referer') || '/menu');
+      }
+
       const userId = (req.session.user && (req.session.user.user_id || req.session.user.userId || req.session.user.id));
       if (!userId) {
         console.error('addToCart: session user exists but user id missing on session.user:', req.session.user);

@@ -318,7 +318,8 @@
                       price: ((p && p.price != null && !isNaN(Number(p.price))) ? Number(p.price).toFixed(2) : '0.00'),
                       description: (p.description || 'Fresh selections ready for your hot pot'),
                       image: fallbackImage,
-                      type: p.product_type || 'Item'
+                      type: p.product_type || 'Item',
+                      quantity: (p.quantity || 0)
                     }) %>'>Quick View</button>
                     <% if (p.quantity > 0) { %>
                       <form class="add-to-cart-form" method="post" action="/cart/add" data-product-name="<%= p.name %>" data-product-price="<%= (p && p.price != null && !isNaN(Number(p.price))) ? Number(p.price).toFixed(2) : '0.00' %>">
@@ -531,6 +532,17 @@
         idInput.value = payload.id || '';
         qtyInput.value = payload.qty && payload.qty > 0 ? payload.qty : 1;
         modal.dataset.quickViewPrice = Number(payload.price || 0);
+        
+        // Check availability
+        const isAvailable = Number(payload.quantity || 0) > 0;
+        const submitBtn = quickViewForm.querySelector('button[type="submit"]');
+        if (submitBtn) {
+          submitBtn.disabled = !isAvailable;
+          submitBtn.textContent = isAvailable ? 'Add to cart' : 'Out of Stock';
+          if (!isAvailable) submitBtn.style.opacity = '0.5';
+          else submitBtn.style.opacity = '1';
+        }
+        
         modal.classList.add('active');
         modal.setAttribute('aria-hidden','false');
       }
@@ -552,6 +564,12 @@
       if (quickViewForm) {
         quickViewForm.addEventListener('submit', async function(ev){
           ev.preventDefault();
+          const submitBtn = quickViewForm.querySelector('button[type="submit"]');
+          // Double-check availability - prevent adding unavailable items
+          if (submitBtn && submitBtn.disabled) {
+            toast('This item is out of stock');
+            return;
+          }
           const formData = new FormData(quickViewForm);
           const payload = new URLSearchParams();
           for (const [k, v] of formData.entries()) payload.append(k, v);
