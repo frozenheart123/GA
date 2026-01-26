@@ -75,9 +75,7 @@
             <h2 style="margin:0;font-size:1.2rem">Shipping</h2>
             <span class="pill">Delivery 1-3 days</span>
           </div>
-          <form id="checkoutForm" method="POST" action="/checkout/confirm" class="stack" style="display:flex;flex-direction:column;gap:14px">
-            <input type="hidden" name="amount" value="<%= amount %>">
-            <input type="hidden" name="reference" value="<%= reference %>">
+          <form id="checkoutForm" method="POST" action="/checkout" class="stack" style="display:flex;flex-direction:column;gap:14px">
             <div class="row">
               <div style="flex:1;min-width:200px">
                 <label>Name</label>
@@ -98,24 +96,11 @@
                 <h3 style="margin:0 0 8px 0;font-size:1.05rem">Payment</h3>
                 <div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap;margin-bottom:6px">
                   <label style="display:flex;align-items:center;gap:8px;cursor:pointer">
-                    <input type="radio" name="payment_method" value="PayNow" checked>
-                    <span>PayNow (QR)</span>
-                  </label>
-                  <label style="display:flex;align-items:center;gap:8px;cursor:pointer">
-                    <input type="radio" name="payment_method" value="COD">
+                    <input type="radio" name="payment_method" value="COD" checked>
                     <span>Cash on Delivery</span>
                   </label>
                 </div>
                 <div class="note" style="margin-bottom:12px"><%= isMember ? 'Member 5% discount is applied automatically.' : 'Member 5% discount is applied automatically.' %></div>
-                <% if (paynowQr) { %>
-                  <div style="margin-top:10px;display:flex;gap:14px;align-items:center;flex-wrap:wrap">
-                    <div style="text-align:center">
-                      <img src="<%= paynowQr %>" alt="PayNow QR" width="150" height="150" style="border:1px solid var(--ring);border-radius:10px;background:#fff">
-                      <div class="note" style="margin-top:6px">Ref: <strong><%= reference %></strong></div>
-                    </div>
-                    <div class="hint">Scan with your PayNow app. Amount is pre-filled and locked at S$<%= amount %>. Keep this tab open while you complete payment.</div>
-                  </div>
-                <% } %>
               </div>
             </div>
 

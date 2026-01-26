@@ -74,6 +74,15 @@
     .user-menu a{display:block;padding:8px 12px;border-radius:8px;color:#5b21b6;font-weight:600;}
     .user-menu a:hover{background:#f4f1ff;}
     .member-pill{display:flex;align-items:center;gap:6px;font-size:.95rem;padding:6px 12px;border-radius:999px;background:linear-gradient(180deg,#fff,#ffe6e6);border:1px solid #ffd1d1;font-weight:700;}
+    .modal-backdrop{position:fixed;inset:0;background:rgba(15,23,42,.45);display:none;align-items:center;justify-content:center;z-index:120;}
+    .modal-backdrop.is-visible{display:flex;}
+    .modal{background:#fff;border:1px solid var(--ring);border-radius:18px;box-shadow:var(--shadow);width:min(92vw,420px);padding:22px;}
+    .modal h3{margin:0 0 8px 0;font-size:1.25rem;}
+    .modal p{margin:0 0 12px 0;color:#475467;font-size:.98rem;}
+    .modal-actions{display:flex;gap:10px;justify-content:flex-end;margin-top:16px;flex-wrap:wrap;}
+    .btn.ghost{background:#fff4f4;border-color:#facae7;}
+    .shake{animation:shake .25s ease-in-out 0s 2;}
+    @keyframes shake{0%,100%{transform:translateX(0)}25%{transform:translateX(-6px)}75%{transform:translateX(6px)}}
   </style>
 </head>
 <body>
@@ -231,7 +240,7 @@
           </div>
         </form>
 
-        <form class="card" method="post" action="/account">
+        <form class="card" method="post" action="/account" id="password-form" data-mfa-enabled="<%= (mfa && mfa.mfa_totp_enabled) ? '1' : '0' %>">
           <div class="card-body">
             <h2>Change Password</h2>
             <p class="note">Minimum 6 characters.</p>
@@ -244,13 +253,10 @@
               <input id="confirm_password" name="confirm_password" type="password" />
             </div>
             <% if (mfa && mfa.mfa_totp_enabled) { %>
-              <div class="form-group">
-                <label for="totp_code2">Authenticator Code</label>
-                <input id="totp_code2" name="totp_code" placeholder="6-digit code" inputmode="numeric" pattern="[0-9]{6}">
-              </div>
+              <input type="hidden" id="totp_code_hidden" name="totp_code" value="">
             <% } %>
             <div class="form-actions">
-              <button class="btn primary" type="submit">Update Password</button>
+              <button class="btn primary" type="submit" id="update-password-btn">Update Password</button>
             </div>
           </div>
         </form>
@@ -283,7 +289,6 @@
                 <option value="">No preference</option>
                 <option <%= pref==='Visa'?'selected':'' %>>Visa</option>
                 <option <%= pref==='Mastercard'?'selected':'' %>>Mastercard</option>
-                <option <%= pref==='PayNow'?'selected':'' %>>PayNow</option>
                 <option <%= pref==='Cash on Delivery'?'selected':'' %>>Cash on Delivery</option>
               </select>
             </div>
@@ -296,6 +301,27 @@
       </section>
     <% } %>
   </main>
+
+  <% if (mfa && mfa.mfa_totp_enabled) { %>
+    <div class="modal-backdrop" id="mfa-modal">
+      <div class="modal" role="dialog" aria-modal="true" aria-labelledby="mfa-title">
+        <h3 id="mfa-title">Authenticator Required</h3>
+        <p>Enter the 6-digit code from Google Authenticator to update your password.</p>
+        <% if (typeof mfaQrDataUrl !== 'undefined' && mfaQrDataUrl) { %>
+          <div class="qr-region" style="display:flex;flex-direction:column;align-items:center;gap:10px;margin:8px 0 12px;">
+            <img src="<%= mfaQrDataUrl %>" alt="Authenticator QR" width="160" height="160" style="border-radius:14px;border:1px solid var(--ring);background:#fff;">
+            <small style="color:#64748b;font-size:.85rem;">Scan if your app is not set up yet.</small>
+          </div>
+        <% } %>
+        <label for="mfa-code-input" class="label">6-digit code</label>
+        <input id="mfa-code-input" class="input" inputmode="numeric" pattern="[0-9]{6}" placeholder="123456" maxlength="6" autocomplete="one-time-code">
+        <div class="modal-actions">
+          <button class="btn ghost" type="button" id="mfa-cancel">Cancel</button>
+          <button class="btn primary" type="button" id="mfa-confirm">Verify & Update</button>
+        </div>
+      </div>
+    </div>
+  <% } %>
 
   <script>
     (function(){
@@ -310,6 +336,72 @@
         if (!menu.contains(ev.target) && !pill.contains(ev.target)) {
           menu.classList.remove('is-visible');
         }
+      });
+    })();
+  </script>
+
+  <script>
+    (function(){
+      const form = document.getElementById('password-form');
+      if (!form) return;
+      const mfaEnabled = form.getAttribute('data-mfa-enabled') === '1';
+      const newPw = document.getElementById('new_password');
+      const confirmPw = document.getElementById('confirm_password');
+      const alertOk = document.querySelectorAll('.alert.ok');
+      alertOk.forEach((el) => {
+        if (!el || !el.textContent) return;
+        const text = el.textContent.toLowerCase();
+        if (text.includes('password') || text.includes('profile')) {
+          setTimeout(() => { el.style.display = 'none'; }, 5000);
+        }
+      });
+      if (!mfaEnabled) return;
+      const modal = document.getElementById('mfa-modal');
+      const codeInput = document.getElementById('mfa-code-input');
+      const hidden = document.getElementById('totp_code_hidden');
+      const cancelBtn = document.getElementById('mfa-cancel');
+      const confirmBtn = document.getElementById('mfa-confirm');
+      if (!modal || !codeInput || !hidden || !cancelBtn || !confirmBtn) return;
+
+      const openModal = () => {
+        modal.classList.add('is-visible');
+        codeInput.value = '';
+        setTimeout(() => codeInput.focus(), 0);
+      };
+      const closeModal = () => {
+        modal.classList.remove('is-visible');
+      };
+      const needsPasswordChange = () => {
+        return (newPw && newPw.value.trim().length > 0) || (confirmPw && confirmPw.value.trim().length > 0);
+      };
+
+      form.addEventListener('submit', function(ev){
+        if (!mfaEnabled || !needsPasswordChange()) return;
+        if (hidden.value && hidden.value.trim().length === 6) return;
+        ev.preventDefault();
+        openModal();
+      });
+
+      cancelBtn.addEventListener('click', function(){
+        hidden.value = '';
+        closeModal();
+      });
+
+      confirmBtn.addEventListener('click', function(){
+        const code = (codeInput.value || '').trim();
+        if (!/^\d{6}$/.test(code)) {
+          codeInput.classList.add('shake');
+          setTimeout(() => codeInput.classList.remove('shake'), 300);
+          codeInput.focus();
+          return;
+        }
+        hidden.value = code;
+        closeModal();
+        form.submit();
+      });
+
+      modal.addEventListener('click', function(ev){
+        if (ev.target === modal) closeModal();
       });
     })();
   </script>

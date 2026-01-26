@@ -23,7 +23,6 @@ const cartitems = require('./models/cartitems');
 const speakeasy = require('speakeasy');
 const QRCode = require('qrcode');
 const mfaUtil = require('./utils/mfa');
-const paynowUtils = require('./utils/paynow');
 const db = require('./db');
 
 const app = express();
@@ -149,7 +148,7 @@ app.post('/cart/clear', cartController.clearCart);
 const { ensureCart, computeCartTotals } = cartController;
 
 
-app.get('/checkout', paymentController.generatePayNowCheckout);
+app.get('/checkout', paymentController.generateCheckout);
 
 app.post('/checkout', (req, res) => {
   const isMember = !!(req.session.user && req.session.user.is_member);
@@ -166,6 +165,8 @@ app.post('/checkout', (req, res) => {
       const paymentInfo = {
         name: req.body.name || (req.session.user && req.session.user.name) || 'Guest',
         email: req.body.email || (req.session.user && req.session.user.email) || '',
+        method: 'Cash on Delivery',
+        reference: 'COD',
       };
       // Clear both session and DB cart after checkout
       req.session.cart = [];
@@ -181,6 +182,8 @@ app.post('/checkout', (req, res) => {
   const paymentInfo = {
     name: req.body.name || 'Guest',
     email: req.body.email || '',
+    method: 'Cash on Delivery',
+    reference: 'COD',
   };
   req.session.cart = [];
   return res.render('checkout_success', { totals, isMember, paymentInfo });
@@ -204,8 +207,8 @@ app.post('/checkout/confirm', (req, res) => {
       const paymentInfo = {
         name: req.session.user ? req.session.user.name : 'Guest',
         email: req.session.user ? req.session.user.email : '',
-        method: 'PayNow',
-        reference: req.body.reference || 'PayNow',
+        method: 'Cash on Delivery',
+        reference: 'COD',
       };
       req.session.cart = [];
       return res.render('checkout_success', { totals, isMember, paymentInfo });
@@ -221,8 +224,8 @@ app.post('/checkout/confirm', (req, res) => {
   const paymentInfo = {
     name: 'Guest',
     email: '',
-    method: 'PayNow',
-    reference: req.body.reference || 'PayNow',
+    method: 'Cash on Delivery',
+    reference: 'COD',
   };
   req.session.cart = [];
   return res.render('checkout_success', { totals, isMember, paymentInfo });
@@ -248,6 +251,7 @@ app.post('/admin/products/add', requireAdmin, upload.single('image_file'), admin
 app.get('/admin/products/:id/edit', requireAdmin, adminProductsController.getEdit);
 app.post('/admin/products/:id/edit', requireAdmin, upload.single('image_file'), adminProductsController.postEdit);
 app.post('/admin/products/:id/toggle', requireAdmin, adminProductsController.postToggle);
+app.post('/admin/products/:id/slider', requireAdmin, adminProductsController.postSlider);
 app.post('/admin/products/:id/delete', requireAdmin, adminProductsController.postDelete);
 app.get('/admin/users', requireAdmin, adminUsersController.dashboard);
 app.get('/admin/users/add', requireAdmin, adminUsersController.getAdd);
@@ -325,12 +329,17 @@ const buildVerifyPayload = async (req) => {
     const auth = await UserModel.getAuthByIdFull(uid);
     const user = await UserModel.getById(uid);
     if (auth && auth.mfa_totp_enabled && auth.mfa_totp_secret_enc) {
-      const base32 = (auth.mfa_totp_iv && auth.mfa_totp_tag)
+      const hasIv = mfaUtil.hasNonEmpty(auth.mfa_totp_iv);
+      const hasTag = mfaUtil.hasNonEmpty(auth.mfa_totp_tag);
+      let base32 = (hasIv && hasTag)
         ? mfaUtil.decryptSecretParts(auth.mfa_totp_secret_enc, auth.mfa_totp_iv, auth.mfa_totp_tag)
         : mfaUtil.decryptSecret(auth.mfa_totp_secret_enc);
+      if (!base32 && !hasIv && !hasTag) {
+        base32 = mfaUtil.decryptSecret(auth.mfa_totp_secret_enc);
+      }
       if (base32) {
         const accountName = user && user.name ? user.name : `user${uid}`;
-        const otpauth = `otpauth://totp/${encodeURIComponent('GA_Malamart:'+accountName)}?secret=${encodeURIComponent(base32)}&issuer=GA_Malamart&digits=6&period=30&algorithm=SHA1`;
+        const otpauth = mfaUtil.buildOtpAuthUri({ issuer: 'GA_Malamart', accountName, secretBase32: base32, digits: 6, period: 30, algorithm: 'SHA1' });
         const qrDataUrl = await QRCode.toDataURL(otpauth);
         return { showQRCode: true, qrDataUrl, otpauthUri: otpauth };
       }
@@ -373,9 +382,14 @@ app.post('/2fa/verify', async (req, res) => {
     if (pending && pending.base32) {
       secretBase32 = pending.base32;
     } else if (auth && auth.mfa_totp_enabled) {
-      secretBase32 = (auth.mfa_totp_iv && auth.mfa_totp_tag)
+      const hasIv = mfaUtil.hasNonEmpty(auth.mfa_totp_iv);
+      const hasTag = mfaUtil.hasNonEmpty(auth.mfa_totp_tag);
+      secretBase32 = (hasIv && hasTag)
         ? mfaUtil.decryptSecretParts(auth.mfa_totp_secret_enc, auth.mfa_totp_iv, auth.mfa_totp_tag)
         : mfaUtil.decryptSecret(auth.mfa_totp_secret_enc);
+      if (!secretBase32 && !hasIv && !hasTag) {
+        secretBase32 = mfaUtil.decryptSecret(auth.mfa_totp_secret_enc);
+      }
     }
     if (!secretBase32) {
       const payload = await buildVerifyPayload(req);
