@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Payment Failed</title>
+    <style>
+        :root {
+            --primary: #d14343;
+            --primary-ink: #8b1f1f;
+            --ink: #0f172a;
+            --muted: #6b7280;
+            --card: #ffffff;
+            --ring: #e5e7eb;
+            --shadow: 0 10px 30px rgba(15, 23, 42, .08);
+        }
+        * { box-sizing: border-box; }
+        body {
+            margin: 0;
+            font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
+            font-size: 18px;
+            line-height: 1.6;
+            color: var(--ink);
+            background: linear-gradient(180deg, #fff, #fff 45%, #fdf6f6 100%);
+            -webkit-font-smoothing: antialiased;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            padding: 20px;
+        }
+        .container {
+            background: var(--card);
+            border: 1px solid var(--ring);
+            border-radius: 14px;
+            box-shadow: var(--shadow);
+            padding: 40px;
+            max-width: 500px;
+            width: 100%;
+            text-align: center;
+        }
+        h1 {
+            margin: 0 0 10px 0;
+            font-size: 1.5rem;
+            color: #ef4444;
+        }
+        p {
+            margin: 8px 0;
+            color: var(--muted);
+            font-size: 1.1rem;
+        }
+        .error-icon {
+            font-size: 3rem;
+            margin: 20px 0;
+        }
+        .btn-group {
+            display: flex;
+            gap: 10px;
+            margin-top: 20px;
+            flex-wrap: wrap;
+            justify-content: center;
+        }
+        a {
+            flex: 1;
+            min-width: 150px;
+            padding: 12px 24px;
+            border-radius: 10px;
+            text-decoration: none;
+            font-weight: 800;
+            transition: background 0.3s;
+        }
+        .btn-retry {
+            background: #d14343;
+            color: white;
+        }
+        .btn-retry:hover {
+            background: #8b1f1f;
+        }
+        .btn-home {
+            background: var(--ring);
+            color: var(--ink);
+            border: 1px solid var(--ring);
+        }
+        .btn-home:hover {
+            background: #f3f4f6;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>✗ Payment Failed</h1>
+        <div class="error-icon">⚠️</div>
+        <p><%= message %></p>
+        <p>Your payment could not be processed. Please try again.</p>
+        <div class="btn-group">
+            <a href="/checkout" class="btn-retry">Try Again</a>
+            <a href="/" class="btn-home">Back to Home</a>
+        </div>
+    </div>
+</body>
+</html>

@@ -12,4 +12,3 @@ npm-debug.log*
 .DS_Store
 Thumbs.db
 models/adminReports.js
-.env
