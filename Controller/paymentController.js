@@ -5,7 +5,6 @@ const CartItems = require('../models/cartitems');
 const Orders = require('../models/order');
 const OrderDetails = require('../models/order');
 const productModel = require('../models/product');
-const UserModel = require('../models/user');
 const paypal = require('../services/paypal');
 
 exports.generateCheckout = async (req, res, next) => {
@@ -231,6 +230,7 @@ exports.pay = async (req, res) => {
   console.log("Session user:", req.session?.user);
   
   try {
+    let transaction = null;
     // Validate user is logged in
     if (!req.session.user) {
       console.warn('pay: user not logged in');
@@ -267,7 +267,7 @@ exports.pay = async (req, res) => {
     const isoString = capture.purchase_units[0].payments.captures[0].create_time;
     const mysqlDatetime = isoString.replace("T", " ").replace("Z", "");
 
-    const transaction = {
+    const transactionBase = {
       orderId: capture.id,
       payerId: capture.payer.payer_id,
       payerEmail: capture.payer.email_address,
@@ -275,12 +275,8 @@ exports.pay = async (req, res) => {
       currency: capture.purchase_units[0].payments.captures[0].amount.currency_code,
       status: capture.status,
       time: mysqlDatetime,
+      captureId: capture.purchase_units[0].payments.captures[0].id,
     };
-
-    console.log('pay: Saving transaction to database:', transaction);
-
-    // Save transaction to DB
-    await createTransaction(transaction);
 
     // Get cart items for this user
     const items = await getCartItemsByUserId(userId);
@@ -328,7 +324,14 @@ exports.pay = async (req, res) => {
     if (Orders && Orders.createOrder && typeof Orders.createOrder === 'function') {
       try {
         console.log('pay: Creating order in database for userId:', userId);
-        dbOrderId = await Orders.createOrder(userId, subtotalAmount, discountAmount, payableAmount, orderItems);
+        // Detect payment method
+        let paymentMethod = 'PayPal';
+        if (req.body.netsTxnId) {
+          paymentMethod = 'Nets';
+        } else if (req.body.paynowTxnId) {
+          paymentMethod = 'PayNow';
+        }
+        dbOrderId = await Orders.createOrder(userId, subtotalAmount, discountAmount, payableAmount, orderItems, paymentMethod);
         console.log('pay: Order created in database with ID:', dbOrderId);
       } catch (orderErr) {
         console.warn('pay: Error creating order in database (continuing anyway):', orderErr.message);
@@ -337,6 +340,16 @@ exports.pay = async (req, res) => {
     } else {
       console.warn('pay: Orders.createOrder method not found - skipping order creation');
     }
+
+    transaction = {
+      ...transactionBase,
+      orderId: dbOrderId || transactionBase.orderId
+    };
+
+    console.log('pay: Saving transaction to database:', transaction);
+
+    // Save transaction to DB
+    await createTransaction(transaction);
 
     // Decrement stock for each product ordered
     console.log('pay: Order items prepared. Now decrementing stock for', orderItems.length, 'items');
@@ -404,42 +417,78 @@ exports.pay = async (req, res) => {
 exports.getOrders = async (req, res) => {
   try {
     const userId = req.session.user.userId;
-    
-    Orders.getOrdersByUser(userId, (err, orders) => {
-      if (err) {
-        console.error("Error fetching orders:", err);
-        return res.status(500).json({ error: "Failed to fetch orders" });
-      }
-      res.json({ success: true, orders });
+    const orders = await new Promise((resolve, reject) => {
+      Orders.getOrdersByUser(userId, (err, orders) => {
+        if (err) reject(err);
+        else resolve(orders);
+      });
     });
+
+    // Attach paymentInfo for each order
+    for (const order of orders) {
+      const transactions = await Transaction.getByOrderId(order.id || order.orderId);
+      const transaction = Array.isArray(transactions) ? transactions[0] : transactions;
+      let paymentInfo = { method: 'Unknown', reference: '' };
+      if (transaction) {
+        if (transaction.payerId === 'NETS') {
+          paymentInfo.method = 'NETS QR';
+          paymentInfo.reference = transaction.captureId || transaction.payerId;
+        } else if (transaction.payerId === 'PAYNOW') {
+          paymentInfo.method = 'PayNow';
+          paymentInfo.reference = transaction.captureId || transaction.payerId;
+        } else if (transaction.payerEmail && transaction.captureId) {
+          paymentInfo.method = 'PayPal';
+          paymentInfo.reference = transaction.captureId;
+        } else if (transaction.payerEmail) {
+          paymentInfo.method = 'PayPal';
+          paymentInfo.reference = transaction.payerEmail;
+        } else if (transaction.payerId) {
+          paymentInfo.method = 'PayPal';
+          paymentInfo.reference = transaction.payerId;
+        }
+      }
+      order.paymentInfo = paymentInfo;
+    }
+
+    res.json({ success: true, orders });
   } catch (err) {
-    console.error("Get orders error:", err);
-    res.status(500).json({ error: "Failed to fetch orders", message: err.message });
+    console.error('Get orders error:', err);
+    res.status(500).json({ error: 'Failed to fetch orders', message: err.message });
   }
 };
 
-// Get order details by order ID
-exports.getOrderDetails = async (req, res) => {
+// Refund a PayPal payment for an order
+exports.refund = async (req, res) => {
   try {
-    const orderId = req.params.orderId;
-    
-    OrderDetails.getByOrderId(orderId, (err, items) => {
-      if (err) {
-        console.error("Error fetching order details:", err);
-        return res.status(500).json({ error: "Failed to fetch order details" });
+    const { orderId, reason, amount } = req.body;
+    if (!orderId) return res.render('refund', { error: 'Order ID required', orderId, reason });
+    // Find transaction for this order
+    const transaction = await Transaction.getByOrderId(orderId);
+    if (!transaction || !transaction.captureId) {
+      return res.render('refund', { error: 'No PayPal transaction found for this order', orderId, reason });
+    }
+    // Optionally allow partial refund: req.body.amount
+    const refundResult = await paypal.refundPayment(transaction.captureId, amount);
+    if (refundResult && refundResult.status === 'COMPLETED') {
+      // Update transaction status to REFUNDED and store refund reason
+      await Transaction.updateStatusByOrderId(orderId, 'REFUNDED', reason);
+      // Restore product stock
+      const orderItems = await Orders.getItemsByOrderId(orderId);
+      for (const item of orderItems) {
+        const productId = item.product_id || item.productid;
+        if (!productId) continue;
+        // Increment stock by the quantity bought
+        await productModel.incrementStock(productId, item.quantity);
       }
-      
-      const total = items.reduce((sum, item) => sum + Number(item.total || 0), 0);
-      
-      res.json({ 
-        success: true, 
-        orderId,
-        items,
-        total: total.toFixed(2)
-      });
-    });
+      // Update order status to refunded and redirect to receipt page
+      await Orders.updateStatus(orderId, 'refunded');
+      return res.redirect(`/orders/${orderId}`);
+    }
+    return res.render('refund', { error: 'Refund failed', details: refundResult, orderId, reason });
   } catch (err) {
-    console.error("Get order details error:", err);
-    res.status(500).json({ error: "Failed to fetch order details", message: err.message });
+    console.error('PayPal refund error:', err);
+    return res.render('refund', { error: 'Refund failed', message: err.message, orderId: req.body.orderId, reason: req.body.reason });
   }
 };
+
+// ...existing code...

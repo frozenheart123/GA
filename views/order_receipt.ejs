@@ -165,6 +165,10 @@
               <span class="info-value">Membership Plan</span>
             </div>
             <% } %>
+            <div class="info-row">
+              <span class="info-label">Payment Method:</span>
+              <span class="info-value"><%= order.payment_method ? order.payment_method : 'N/A' %></span>
+            </div>
           </div>
 
           <div class="info-section">
@@ -234,8 +238,15 @@
       </div>
     </div>
 
-    <div style="text-align:center;">
-      <button class="print-btn" onclick="window.print()">🖨️ Print Receipt</button>
+  <div style="display:inline-flex; gap:16px; align-items:center; margin-bottom:18px;">
+    <button class="print-btn" onclick="window.print()">🖨️ Print Receipt</button>
+    <% if (order.payment_method && order.payment_method.toLowerCase() === 'paypal') { %>
+      <form method="GET" action="/refund" style="display:inline; margin:0;">
+        <input type="hidden" name="orderId" value="<%= order.order_id %>" />
+        <button type="submit" class="print-btn" style="margin-left:0;">💸 Refund</button>
+      </form>
+    <% } %>
+  </div>
       <div class="back-link">
         <a href="/orders">← Back to My Orders</a>
       </div>

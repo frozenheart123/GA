@@ -1,15 +1,15 @@
 const db = require('../db');
 
-exports.createOrder = (userId, subtotal, discount, total, cartItems) => {
+exports.createOrder = (userId, subtotal, discount, total, cartItems, paymentMethod) => {
   return new Promise((resolve, reject) => {
     // Start transaction
     db.beginTransaction((err) => {
       if (err) return reject(err);
 
       // Insert order
-      const orderSql = `INSERT INTO orders (user_id, subtotal_amount, discount_amount, total_amount, status, contains_membership, created_at)
-                        VALUES (?, ?, ?, ?, 'paid', 0, NOW())`;
-      db.query(orderSql, [userId, subtotal, discount, total], (err, result) => {
+      const orderSql = `INSERT INTO orders (user_id, subtotal_amount, discount_amount, total_amount, status, contains_membership, created_at, payment_method)
+                        VALUES (?, ?, ?, ?, 'paid', 0, NOW(), ?)`;
+      db.query(orderSql, [userId, subtotal, discount, total, paymentMethod], (err, result) => {
         if (err) {
           return db.rollback(() => reject(err));
         }
@@ -51,6 +51,17 @@ exports.createOrder = (userId, subtotal, discount, total, cartItems) => {
             db.rollback(() => reject(itemErr));
           });
       });
+    });
+  });
+};
+
+exports.getItemsByOrderId = (orderId) => {
+  return new Promise((resolve, reject) => {
+    const sql = `SELECT product_id, quantity, unit_price, line_total
+                 FROM order_item WHERE order_id = ?`;
+    db.query(sql, [orderId], (err, rows) => {
+      if (err) return reject(err);
+      resolve(rows || []);
     });
   });
 };
@@ -116,7 +127,7 @@ exports.getById = (orderId) => {
   return new Promise((resolve, reject) => {
     const sql = `
       SELECT o.order_id, o.user_id, IFNULL(u.name, 'Guest') AS user_name, o.subtotal_amount,
-             o.discount_amount, o.total_amount, o.status, o.created_at
+             o.discount_amount, o.total_amount, o.status, o.created_at , o.payment_method
       FROM orders o
       LEFT JOIN users u ON u.user_id = o.user_id
       WHERE o.order_id = ? LIMIT 1

@@ -382,9 +382,18 @@ app.post('/admin/orders/:id/status', requireAdmin, adminOrdersController.postSta
 app.post('/admin/orders/:id/refund', requireAdmin, adminOrdersController.postRefund);
 app.get('/admin/reports', requireAdmin, adminReportsController.dashboard);
 
+
 // Orders
 app.get('/orders', requireAuth, ordersController.getMyOrders);
 app.get('/orders/:orderId', requireAuth, ordersController.getOrderReceipt);
+
+// Refund routes
+app.get('/refund', requireAuth, (req, res) => {
+  // Render refund.ejs with orderId from query
+  const orderId = req.query.orderId;
+  res.render('refund', { orderId });
+});
+app.post('/refund/paypal', requireAuth, paymentController.refund);
 
 app.get('/account', requireAuth, accountController.getAccount);
 app.post('/account', requireAuth, accountController.postAccount);

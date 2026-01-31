@@ -1,0 +1,56 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Refund Order - Mala Hot Pot Market</title>
+  <style>
+    :root{ --primary:#d14343; --primary-ink:#8b1f1f; --ink:#0f172a; --muted:#6b7280; --card:#fff; --ring:#e5e7eb; --accent:#fef3f3; --radius:16px; --shadow:0 10px 30px rgba(15,23,42,.08); --space:18px; --max:800px; }
+    body{ margin:0; font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif; font-size:16px; line-height:1.6; color:var(--ink); background:linear-gradient(180deg,#fff, #fff 45%, #fdf6f6 100%); }
+    .container{max-width:var(--max);margin:0 auto;padding:24px}
+    .card{ background:var(--card); border:1px solid var(--ring); border-radius:var(--radius); box-shadow:var(--shadow); max-width:500px; margin:40px auto; padding:32px; }
+    h2{ color:var(--primary-ink); font-weight:900; margin-bottom:24px; text-align:center; }
+    label{ font-weight:600; color:var(--primary-ink); }
+    select, input[type="text"]{ width:100%; padding:12px; border-radius:8px; border:1px solid var(--ring); margin-top:8px; margin-bottom:18px; font-size:1rem; }
+    .btn-danger{ background:var(--primary); color:white; border:none; padding:12px 24px; border-radius:8px; font-weight:700; cursor:pointer; margin-right:10px; }
+    .btn-danger:hover{ background:var(--primary-ink); }
+    .btn-secondary{ background:var(--muted); color:white; border:none; padding:12px 24px; border-radius:8px; font-weight:700; cursor:pointer; }
+    .alert{ margin-bottom:18px; padding:12px; border-radius:8px; }
+    .alert-danger{ background:#fee2e2; color:#991b1b; border:1px solid #fecaca; }
+    .alert-warning{ background:#fef3c7; color:#92400e; border:1px solid #fde68a; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="card">
+      <h2>Refund Order</h2>
+      <% if (typeof error !== 'undefined' && error) { %>
+        <div class="alert alert-danger"><%= error %></div>
+      <% } %>
+      <% if (typeof message !== 'undefined' && message) { %>
+        <div class="alert alert-warning"><%= message %></div>
+      <% } %>
+      <form method="POST" action="/refund/paypal">
+        <input type="hidden" name="orderId" value="<%= orderId || '' %>">
+        <label for="reason">Reason for refund</label>
+        <select id="reason" name="reason" required>
+          <option value="">Select a reason</option>
+          <option value="rotten_goods">Rotten goods</option>
+          <option value="not_fresh">Items not fresh</option>
+          <option value="wrong_items">Wrong items delivered</option>
+          <option value="damaged">Items damaged</option>
+          <option value="late_delivery">Late delivery</option>
+          <option value="other">Other</option>
+        </select>
+        <label for="details">Additional details (optional)</label>
+        <input type="text" id="details" name="details" placeholder="Describe your issue..." />
+        <div style="text-align:center; margin-top:24px;">
+          <button type="submit" class="btn-danger">Submit Refund</button>
+          <a href="/orders" class="btn-secondary">Cancel</a>
+        </div>
+      </form>
+    </div>
+  </div>
+</body>
+</html>

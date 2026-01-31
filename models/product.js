@@ -177,6 +177,16 @@ exports.update = (id, { name, product_type, price, quantity, information, image 
   });
 };
 
+exports.incrementStock = (id, quantity) => {
+  return new Promise((resolve, reject) => {
+    const qty = Number(quantity || 0);
+    db.query('UPDATE product SET quantity = quantity + ? WHERE product_id = ?', [qty, id], (err, result) => {
+      if (err) return reject(err);
+      resolve(result.affectedRows > 0);
+    });
+  });
+};
+
 exports.remove = (id) => {
   return new Promise((resolve, reject) => {
     db.query('DELETE FROM product WHERE product_id = ?', [id], (err, result) => {
