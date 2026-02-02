@@ -284,6 +284,7 @@ app.get('/nets-qr/success', (req, res) => {
 app.get('/nets-qr/fail', (req, res) => {
   res.render('netsTxnFailStatus', { message: 'Transaction Failed. Please try again.' });
 });
+app.post('/nets-qr/complete', netsQr.completeOrder);
 app.get('/sse/payment-status/:txnRetrievalRef', async (req, res) => {
   res.set({
     'Content-Type': 'text/event-stream',
