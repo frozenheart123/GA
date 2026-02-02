@@ -645,3 +645,10 @@ ALTER TABLE payment_method
 ALTER TABLE product
   ADD COLUMN is_slider TINYINT(1) NOT NULL DEFAULT 0;
 UPDATE product SET is_slider = 0;
+
+
+ALTER TABLE transactions
+  ADD COLUMN captureId VARCHAR(255) DEFAULT NULL,
+  ADD COLUMN refundReason VARCHAR(255) DEFAULT NULL;
+
+ALTER TABLE orders ADD COLUMN payment_method VARCHAR(50) DEFAULT NULL;
