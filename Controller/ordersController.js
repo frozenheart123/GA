@@ -1,4 +1,5 @@
 const Order = require('../models/order');
+const Transaction = require('../models/transaction');
 
 exports.getMyOrders = async (req, res) => {
   try {
@@ -42,6 +43,18 @@ exports.getOrderReceipt = async (req, res) => {
     const order = await Order.getById(orderId);
     if (!order || order.user_id !== userId) {
       return res.status(404).send('Order not found');
+    }
+
+    if (!order.payment_method) {
+      const tx = await Transaction.getByOrderId(orderId);
+      if (tx) {
+        if (tx.payerId === 'NETS') order.payment_method = 'NETS';
+        else if (tx.payerId === 'PAYNOW') order.payment_method = 'PayNow';
+        else order.payment_method = 'PayPal';
+      }
+    }
+    if (!order.payment_method && (order.status === 'paid' || order.status === 'refunded')) {
+      order.payment_method = 'PayPal';
     }
 
     // Get order items

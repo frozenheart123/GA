@@ -29,12 +29,19 @@
     .card{background:#fff;border:1px solid var(--ring);border-radius:var(--radius);box-shadow:var(--shadow);margin-top:16px}
     .card-body{padding:16px}
     .row{display:flex;gap:12px;flex-wrap:wrap;align-items:center}
-    .input{border:1px solid var(--ring);border-radius:12px;padding:10px 12px;font-size:1rem}
-    .btn{padding:10px 14px;border-radius:12px;border:1px solid var(--ring);background:#fff;cursor:pointer;font-weight:800}
+    .input{border:1px solid var(--ring);border-radius:12px;padding:10px 12px;font-size:1rem;background:#fff}
+    .btn{padding:10px 14px;border-radius:12px;border:1px solid var(--ring);background:#fff;cursor:pointer;font-weight:800;transition:transform .08s ease, box-shadow .12s ease, border-color .12s ease}
+    .btn:hover{transform:translateY(-1px);box-shadow:0 10px 20px rgba(15,23,42,.12)}
+    .btn.primary{background:#d14343;border-color:#d14343;color:#fff}
+    .btn.ghost{background:#fff;color:#8b1f1f;border-color:#f3c4c4}
+    .btn.danger{background:#991b1b;border-color:#991b1b;color:#fff}
+    .btn.small{padding:8px 12px;border-radius:10px;font-size:.95rem}
     table{width:100%;border-collapse:collapse;margin-top:12px}
     th,td{padding:10px 14px;border-bottom:1px solid var(--ring);text-align:left;vertical-align:top}
     .detail-row td{background:#fdfdfd}
-    .item-pill{display:inline-flex;align-items:center;gap:6px;border-radius:8px;padding:4px 10px;border:1px solid #e5e7eb;margin:4px;flex-wrap:wrap;}
+    .item-pill{display:inline-flex;align-items:center;gap:6px;border-radius:10px;padding:6px 10px;border:1px solid #e5e7eb;margin:4px;flex-wrap:wrap;background:#fff}
+    .status-pill{display:inline-flex;align-items:center;gap:6px;border-radius:999px;padding:6px 12px;font-weight:700;border:1px solid #e5e7eb;background:#f8fafc}
+    .actions{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
   </style>
 </head>
 <body>
@@ -105,6 +112,18 @@
     <div class="card" style="margin-top:8px;border-color:#a7f3d0;background:#ecfdf5">
       <div class="card-body" style="color:#065f46;font-weight:800">Refund processed.</div>
     </div>
+  <% } else if (refundAlert === 'pending') { %>
+    <div class="card" style="margin-top:8px;border-color:#fde68a;background:#fffbeb">
+      <div class="card-body" style="color:#92400e;font-weight:800">Refund pending. PayPal may take a few minutes.</div>
+    </div>
+  <% } else if (refundAlert === 'unsupported') { %>
+    <div class="card" style="margin-top:8px;border-color:#fed7aa;background:#fff7ed">
+      <div class="card-body" style="color:#9a3412;font-weight:800">Refund not supported for this payment method.</div>
+    </div>
+  <% } else if (refundAlert === 'missing_tx') { %>
+    <div class="card" style="margin-top:8px;border-color:#fecaca;background:#fff1f2">
+      <div class="card-body" style="color:#991b1b;font-weight:800">PayPal refund failed: missing transaction record.</div>
+    </div>
   <% } else if (refundAlert === 'error') { %>
     <div class="card" style="margin-top:8px;border-color:#fecdd3;background:#fff1f2">
       <div class="card-body" style="color:#991b1b;font-weight:800">Refund failed. Please try again.</div>
@@ -129,6 +148,7 @@
             <th>Order</th>
             <th>User</th>
             <th>Total</th>
+            <th>Payment</th>
             <th>Status</th>
             <th>Placed</th>
             <th>Actions</th>
@@ -141,24 +161,23 @@
               <td><strong>#<%= order.order_id %></strong></td>
               <td><%= order.user_name %></td>
               <td>$<%= Number(order.total_amount).toFixed(2) %></td>
-              <td><%= order.status %></td>
+              <td><%= order.payment_method ? order.payment_method : 'N/A' %></td>
+              <td><span class="status-pill"><%= order.status %></span></td>
               <td><%= order.created_at.toISOString ? order.created_at.toISOString().slice(0,19).replace('T',' ') : order.created_at %></td>
               <td>
-                <form method="post" action="/admin/orders/<%= order.order_id %>/status" style="display:flex;gap:6px;flex-wrap:wrap;align-items:center">
-                  <select name="status" class="input">
-                    <% orderStatuses.forEach(function(st){ %>
-                      <option value="<%= st %>" <%= order.status === st ? 'selected' : '' %>><%= st %></option>
-                    <% }) %>
-                  </select>
-                  <button class="btn" type="submit">Update</button>
-                </form>
-                <% if (String(order.status).toLowerCase() !== 'refunded') { %>
-                  <button class="btn" type="button" data-refund-btn data-order-id="<%= order.order_id %>" data-items='<%- JSON.stringify(itemsByOrder[order.order_id] || []) %>'>Refund</button>
-                <% } %>
+                <div class="actions">
+                  <a class="btn ghost small" href="/admin/orders/<%= order.order_id %>/print" target="_blank" rel="noopener">Print</a>
+                  <% const method = (order.payment_method || '').toLowerCase(); %>
+                  <% if (String(order.status).toLowerCase() !== 'refunded' && (method === 'paypal' || !method)) { %>
+                    <button class="btn danger small" type="button" data-refund-btn data-order-id="<%= order.order_id %>" data-items='<%- JSON.stringify(itemsByOrder[order.order_id] || []) %>'>Refund</button>
+                  <% } else if (String(order.status).toLowerCase() !== 'refunded' && method && method !== 'paypal') { %>
+                    <button class="btn small" type="button" disabled title="Refund available for PayPal only">No Refund</button>
+                  <% } %>
+                </div>
               </td>
             </tr>
             <tr class="detail-row">
-              <td colspan="6">
+              <td colspan="7">
                 <div style="display:flex;flex-wrap:wrap;gap:8px">
                   <% const items = itemsByOrder[order.order_id] || []; %>
                   <% if (items.length) { %>
@@ -177,7 +196,7 @@
             </tr>
           <% }) %>
         <% } else { %>
-          <tr><td colspan="6" style="color:var(--muted)">No orders found.</td></tr>
+          <tr><td colspan="7" style="color:var(--muted)">No orders found.</td></tr>
         <% } %>
         </tbody>
       </table>
@@ -188,16 +207,12 @@
 <div id="refundModal" style="position:fixed;inset:0;background:rgba(15,23,42,.45);display:none;align-items:center;justify-content:center;z-index:120;">
   <div style="background:#fff;border:1px solid var(--ring);border-radius:16px;box-shadow:var(--shadow);width:min(92vw,520px);padding:18px;">
     <h3 style="margin:0 0 8px 0">Refund Order</h3>
-    <p style="margin:0 0 12px 0;color:#64748b">Review items before refund.</p>
-    <div id="refundItems" style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:12px"></div>
-    <label style="display:flex;gap:8px;align-items:center;margin-bottom:14px">
-      <input type="checkbox" id="refundNoRestock">
-      <span>Refund by demand (do not restock)</span>
-    </label>
     <form id="refundForm" method="post">
-      <input type="hidden" name="no_restock" id="refundNoRestockField" value="0">
-      <div style="display:flex;justify-content:flex-end;gap:10px;flex-wrap:wrap">
-        <button class="btn" type="button" id="refundCancel">Cancel</button>
+      <p style="margin:0 0 12px 0;color:#64748b">Choose refund quantities for each item.</p>
+      <div id="refundItems" style="display:flex;flex-direction:column;gap:10px;margin-bottom:12px"></div>
+      <div style="display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap;align-items:center">
+        <button class="btn small" type="button" id="refundAllBtn">Refund All</button>
+        <button class="btn ghost" type="button" id="refundCancel">Cancel</button>
         <button class="btn primary" type="submit">Confirm Refund</button>
       </div>
     </form>
@@ -210,19 +225,30 @@
     const itemsBox = document.getElementById('refundItems');
     const form = document.getElementById('refundForm');
     const cancelBtn = document.getElementById('refundCancel');
-    const noRestock = document.getElementById('refundNoRestock');
-    const noRestockField = document.getElementById('refundNoRestockField');
+    const refundAllBtn = document.getElementById('refundAllBtn');
     if (!modal || !itemsBox || !form) return;
 
     function openModal(orderId, items){
       itemsBox.innerHTML = '';
       (items || []).forEach(function(item){
-        const pill = document.createElement('div');
-        pill.className = 'item-pill';
-        pill.innerHTML = '<strong>' + (item.name || 'Item') + '</strong>' +
-          '<span>Qty: ' + (item.quantity || 0) + '</span>' +
-          '<span>$' + Number(item.line_total || 0).toFixed(2) + '</span>';
-        itemsBox.appendChild(pill);
+        const row = document.createElement('div');
+        row.className = 'item-pill';
+        const maxQty = Number(item.quantity || 0);
+        const unit = Number(item.unit_price || 0);
+        row.style.display = 'flex';
+        row.style.alignItems = 'center';
+        row.style.justifyContent = 'space-between';
+        row.style.gap = '10px';
+        row.innerHTML =
+          '<div style="display:flex;flex-direction:column;gap:4px">' +
+            '<strong>' + (item.name || 'Item') + '</strong>' +
+            '<span style="color:var(--muted)">Ordered: ' + maxQty + ' @ $' + unit.toFixed(2) + '</span>' +
+          '</div>' +
+          '<div style="display:flex;align-items:center;gap:8px">' +
+            '<label style="font-weight:700">Refund</label>' +
+            '<input class="input refund-qty" data-max="' + maxQty + '" style="width:90px" type="number" min="0" max="' + maxQty + '" step="1" name="refund_qty[' + item.order_item_id + ']" value="0" />' +
+          '</div>';
+        itemsBox.appendChild(row);
       });
       if (!items || !items.length) {
         const empty = document.createElement('span');
@@ -231,8 +257,6 @@
         itemsBox.appendChild(empty);
       }
       form.action = '/admin/orders/' + orderId + '/refund';
-      noRestock.checked = false;
-      noRestockField.value = '0';
       modal.style.display = 'flex';
     }
     function closeModal(){ modal.style.display = 'none'; }
@@ -248,9 +272,14 @@
     modal.addEventListener('click', function(ev){
       if (ev.target === modal) closeModal();
     });
-    noRestock.addEventListener('change', function(){
-      noRestockField.value = noRestock.checked ? '1' : '0';
-    });
+    if (refundAllBtn) {
+      refundAllBtn.addEventListener('click', function(){
+        itemsBox.querySelectorAll('.refund-qty').forEach(function(input){
+          const max = Number(input.getAttribute('data-max') || 0);
+          input.value = String(max);
+        });
+      });
+    }
   })();
 </script>
 </body>
