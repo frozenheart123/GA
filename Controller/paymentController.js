@@ -263,19 +263,29 @@ exports.pay = async (req, res) => {
       return res.status(400).json({ error: "Payment was not completed", status: capture?.status });
     }
 
-    // Extract transaction details from PayPal response
-    const isoString = capture.purchase_units[0].payments.captures[0].create_time;
+    // Extract transaction details from PayPal response with safe access
+    const captureData = capture.purchase_units?.[0]?.payments?.captures?.[0];
+    
+    if (!captureData) {
+      console.error('pay: Invalid PayPal capture response structure:', capture);
+      return res.status(502).json({ 
+        error: "Invalid PayPal response", 
+        message: "PayPal did not return expected capture data" 
+      });
+    }
+    
+    const isoString = captureData.create_time || new Date().toISOString();
     const mysqlDatetime = isoString.replace("T", " ").replace("Z", "");
 
     const transactionBase = {
-      orderId: capture.id,
-      payerId: capture.payer.payer_id,
-      payerEmail: capture.payer.email_address,
-      amount: capture.purchase_units[0].payments.captures[0].amount.value,
-      currency: capture.purchase_units[0].payments.captures[0].amount.currency_code,
-      status: capture.status,
+      orderId: capture.id || orderId,
+      payerId: capture.payer?.payer_id || 'UNKNOWN',
+      payerEmail: capture.payer?.email_address || 'no-email@paypal.com',
+      amount: captureData.amount?.value || '0.00',
+      currency: captureData.amount?.currency_code || 'SGD',
+      status: capture.status || 'UNKNOWN',
       time: mysqlDatetime,
-      captureId: capture.purchase_units[0].payments.captures[0].id,
+      captureId: captureData.id || orderId,
     };
 
     // Get cart items for this user
@@ -303,7 +313,7 @@ exports.pay = async (req, res) => {
     }
 
     // Warn if captured amount does not match what we computed (should not happen if createOrder used same totals)
-    const capturedAmount = Number(capture.purchase_units[0].payments.captures[0].amount.value);
+    const capturedAmount = Number(captureData.amount?.value || 0);
     if (Math.abs(capturedAmount - payableAmount) > 0.01) {
       console.warn('pay: Captured amount differs from computed payable', { capturedAmount, payableAmount });
     }

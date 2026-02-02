@@ -260,6 +260,45 @@ LOCK TABLES `payment_event` WRITE;
 UNLOCK TABLES;
 
 --
+-- Table structure for table `nets_transactions`
+--
+
+DROP TABLE IF EXISTS `nets_transactions`;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!50503 SET character_set_client = utf8mb4 */;
+CREATE TABLE `nets_transactions` (
+  `nets_transaction_id` bigint NOT NULL AUTO_INCREMENT,
+  `user_id` int DEFAULT NULL,
+  `order_id` int DEFAULT NULL,
+  `amount` decimal(10,2) NOT NULL DEFAULT '0.00',
+  `txn_retrieval_ref` varchar(128) NOT NULL,
+  `net_transaction_id` varchar(128) DEFAULT NULL,
+  `course_init_id` varchar(128) DEFAULT NULL,
+  `status` enum('pending','success','failed','timeout') NOT NULL DEFAULT 'pending',
+  `response_code` varchar(10) DEFAULT NULL,
+  `network_status` tinyint DEFAULT NULL,
+  `payload` json DEFAULT NULL,
+  `created_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `updated_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (`nets_transaction_id`),
+  UNIQUE KEY `uq_nets_txn_ref` (`txn_retrieval_ref`),
+  KEY `idx_nets_user_id` (`user_id`),
+  KEY `idx_nets_order_id` (`order_id`),
+  CONSTRAINT `fk_nets_transactions_user` FOREIGN KEY (`user_id`) REFERENCES `users` (`user_id`) ON DELETE SET NULL ON UPDATE CASCADE,
+  CONSTRAINT `fk_nets_transactions_order` FOREIGN KEY (`order_id`) REFERENCES `orders` (`order_id`) ON DELETE SET NULL ON UPDATE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+/*!40101 SET character_set_client = @saved_cs_client */;
+
+--
+-- Dumping data for table `nets_transactions`
+--
+
+LOCK TABLES `nets_transactions` WRITE;
+/*!40000 ALTER TABLE `nets_transactions` DISABLE KEYS */;
+/*!40000 ALTER TABLE `nets_transactions` ENABLE KEYS */;
+UNLOCK TABLES;
+
+--
 -- Table structure for table `payment_method`
 --
 
