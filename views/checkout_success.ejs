@@ -35,7 +35,11 @@
         <div class="summary-row"><span>Shipping</span><span>1–3 days</span></div>
         <div class="summary-row" style="font-weight:700"><span>Total</span><strong>$<%= totals.total.toFixed(2) %></strong></div>
       </div>
-      <a class="btn" href="/menu">Continue Shopping</a>
+      <% if (orderId) { %>
+        <a class="btn" href="/orders/<%= orderId %>">View Receipt</a>
+      <% } else { %>
+        <a class="btn" href="/orders">View My Orders</a>
+      <% } %>
     </div>
   </main>
 </body>

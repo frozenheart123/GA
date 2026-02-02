@@ -1,0 +1,182 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title><%= title %></title>
+    <script src="https://unpkg.com/event-source-polyfill"></script>
+    <style>
+        :root {
+            --primary: #d14343;
+            --primary-ink: #8b1f1f;
+            --ink: #0f172a;
+            --muted: #6b7280;
+            --card: #ffffff;
+            --ring: #e5e7eb;
+            --shadow: 0 10px 30px rgba(15, 23, 42, .08);
+            --space: 18px;
+        }
+        * { box-sizing: border-box; }
+        body {
+            margin: 0;
+            font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
+            font-size: 18px;
+            line-height: 1.6;
+            color: var(--ink);
+            background: linear-gradient(180deg, #fff, #fff 45%, #fdf6f6 100%);
+            -webkit-font-smoothing: antialiased;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            padding: 20px;
+        }
+        .container {
+            background: var(--card);
+            border: 1px solid var(--ring);
+            border-radius: 14px;
+            box-shadow: var(--shadow);
+            padding: 40px;
+            max-width: 500px;
+            width: 100%;
+            text-align: center;
+        }
+        h1 {
+            margin: 0 0 10px 0;
+            font-size: 1.5rem;
+            color: var(--primary);
+        }
+        p {
+            margin: 8px 0;
+            color: var(--muted);
+        }
+        img {
+            max-width: 100%;
+            height: auto;
+            margin: 20px 0;
+            border: 1px solid var(--ring);
+            border-radius: 10px;
+            background: #fff;
+        }
+        #status {
+            font-weight: 800;
+            color: var(--ink);
+            font-size: 1.1rem;
+            margin: 15px 0;
+        }
+        #timer {
+            font-weight: 800;
+            color: var(--primary);
+            margin: 10px 0;
+        }
+        a {
+            display: inline-block;
+            margin-top: 20px;
+            padding: 12px 24px;
+            background: #d14343;
+            color: white;
+            border-radius: 10px;
+            text-decoration: none;
+            font-weight: 800;
+            transition: background 0.3s;
+        }
+        a:hover {
+            background: #8b1f1f;
+        }
+        .loading {
+            display: inline-block;
+            width: 20px;
+            height: 20px;
+            border: 3px solid var(--ring);
+            border-top-color: var(--primary);
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+            margin: 0 10px;
+            vertical-align: middle;
+        }
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Scan the QR Code</h1>
+        <p id="status">
+            <span class="loading"></span>
+            Scan with your bank app to complete payment
+        </p>
+        <img src="<%= qrCodeUrl %>" alt="QR Code" />
+        <p id="timer">Time remaining: 5:00</p>
+        <p style="font-size: 0.9rem; color: var(--muted);">
+            Open your banking app and scan the QR code above to make the payment.
+        </p>
+        <a href="/cart">Cancel Payment</a>
+    </div>
+
+    <script>
+        let s2sNetsTxnStatus;
+
+        if (s2sNetsTxnStatus) {
+            s2sNetsTxnStatus.close();
+        }
+
+        const txnRetrievalRef = "<%= txnRetrievalRef %>";
+        const url = "/sse/payment-status/" + txnRetrievalRef;
+        const headers = {
+            "api-key": "<%= apiKey %>",
+            "project-id": "<%= projectId %>",
+        };
+
+        // Store NETS response data from server
+        const netsResponseData = {
+            total: "<%= total %>",
+            txnRef: "<%= txnRetrievalRef %>"
+        };
+
+        s2sNetsTxnStatus = new EventSourcePolyfill(url, {
+            headers: headers,
+            heartbeatTimeout: 150000,
+        });
+
+        s2sNetsTxnStatus.addEventListener("message", (event) => {
+            const data = JSON.parse(event.data);
+            console.log("NETS Query Response:", data);
+
+            if (data.success) {
+                if (s2sNetsTxnStatus) s2sNetsTxnStatus.close();
+                window.location.href = "/nets-qr/success?txn_retrieval_ref=" + txnRetrievalRef;
+            } else if (data.fail) {
+                if (s2sNetsTxnStatus) s2sNetsTxnStatus.close();
+                window.location.href = "/nets-qr/fail?txn_retrieval_ref=" + txnRetrievalRef;
+            }
+        });
+
+        console.log("Initialized EventSourcePolyfill");
+
+        const timerElement = document.getElementById("timer");
+        const countdownDuration = 300;
+        let remainingTime = countdownDuration;
+
+        const updateTimer = () => {
+            const minutes = Math.floor(remainingTime / 60);
+            const seconds = remainingTime % 60;
+            timerElement.textContent = `Time remaining: ${minutes}:${seconds.toString().padStart(2, "0")}`;
+            remainingTime--;
+
+            if (remainingTime < 0) {
+                clearInterval(timerInterval);
+                timerElement.textContent = "Transaction timed out.";
+
+                if (s2sNetsTxnStatus) {
+                    s2sNetsTxnStatus.close();
+                }
+                window.location.href = "/nets-qr/fail?txn_retrieval_ref=" + txnRetrievalRef;
+            }
+        };
+
+        const timerInterval = setInterval(updateTimer, 1000);
+        updateTimer();
+    </script>
+</body>
+</html>

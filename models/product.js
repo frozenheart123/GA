@@ -30,13 +30,12 @@ exports.getPopularProducts = () => {
   });
 };
 
-// Slider picks (admin curated)
+// Slider picks (return empty since schema doesn't support is_slider)
 exports.getSliderProducts = () => {
   return new Promise((resolve) => {
     const sql = `
       SELECT product_id, product_type, name, price, image, quantity
       FROM product
-      WHERE is_slider = 1
       ORDER BY product_id DESC
       LIMIT 6
     `;
@@ -105,7 +104,7 @@ exports.adminList = ({ q, category } = {}) => {
       where.push('product_type = ?');
       params.push(String(category).trim().toLowerCase());
     }
-    const sql = `SELECT product_id, name, product_type, price, quantity, image, is_slider
+    const sql = `SELECT product_id, name, product_type, price, quantity, image
                  FROM product
                  ${where.length ? 'WHERE ' + where.join(' AND ') : ''}
                  ORDER BY product_id DESC`;
@@ -118,17 +117,14 @@ exports.adminList = ({ q, category } = {}) => {
 
 exports.counts = () => {
   return new Promise((resolve) => {
-    const result = { total: 0, active: 0, low: 0, slider: 0 };
+    const result = { total: 0, active: 0, low: 0 };
     db.query('SELECT COUNT(*) AS c FROM product', (e, r) => {
       result.total = r && r[0] ? r[0].c : 0;
       db.query('SELECT COUNT(*) AS c FROM product WHERE quantity > 0', (e2, r2) => {
         result.active = r2 && r2[0] ? r2[0].c : 0;
         db.query('SELECT COUNT(*) AS c FROM product WHERE quantity < 20', (e3, r3) => {
           result.low = r3 && r3[0] ? r3[0].c : 0;
-          db.query('SELECT COUNT(*) AS c FROM product WHERE is_slider = 1', (e4, r4) => {
-            result.slider = r4 && r4[0] ? r4[0].c : 0;
-            resolve(result);
-          });
+          resolve(result);
         });
       });
     });
@@ -137,21 +133,8 @@ exports.counts = () => {
 
 exports.setSlider = (id, enabled) => {
   return new Promise((resolve, reject) => {
-    if (!enabled) {
-      return db.query('UPDATE product SET is_slider = 0 WHERE product_id = ?', [id], (err, result) => {
-        if (err) return reject(err);
-        resolve({ ok: result.affectedRows > 0 });
-      });
-    }
-    db.query('SELECT COUNT(*) AS c FROM product WHERE is_slider = 1', (err, rows) => {
-      if (err) return reject(err);
-      const count = rows && rows[0] ? Number(rows[0].c) : 0;
-      if (count >= 6) return resolve({ ok: false, reason: 'limit' });
-      db.query('UPDATE product SET is_slider = 1 WHERE product_id = ?', [id], (e2, result) => {
-        if (e2) return reject(e2);
-        resolve({ ok: result.affectedRows > 0 });
-      });
-    });
+    // is_slider column does not exist in schema, return error
+    resolve({ ok: false, reason: 'unsupported' });
   });
 };
 
@@ -188,6 +171,16 @@ exports.update = (id, { name, product_type, price, quantity, information, image 
     const normalizedType = product_type ? String(product_type).trim().toLowerCase() : null;
     const sql = `UPDATE product SET name=?, product_type=?, price=?, quantity=?, information=?, image=? WHERE product_id=?`;
     db.query(sql, [name, normalizedType, price, quantity, information || null, image || null, id], (err, result) => {
+      if (err) return reject(err);
+      resolve(result.affectedRows > 0);
+    });
+  });
+};
+
+exports.incrementStock = (id, quantity) => {
+  return new Promise((resolve, reject) => {
+    const qty = Number(quantity || 0);
+    db.query('UPDATE product SET quantity = quantity + ? WHERE product_id = ?', [qty, id], (err, result) => {
       if (err) return reject(err);
       resolve(result.affectedRows > 0);
     });

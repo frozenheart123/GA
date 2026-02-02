@@ -129,7 +129,13 @@
               </div>
               <div class="row" style="justify-content:space-between;margin-top:8px">
                 <div class="note">Placed: <%= (o.created_at && o.created_at.toISOString) ? o.created_at.toISOString().slice(0,19).replace('T',' ') : o.created_at %></div>
-                <div><strong>Total:</strong> $<%= Number(o.total_amount).toFixed(2) %></div>
+                <div style="text-align:right; line-height:1.4">
+                  <div class="note">Subtotal: $<%= Number(o.subtotal_amount).toFixed(2) %></div>
+                  <% if (Number(o.discount_amount) > 0) { %>
+                    <div class="note">Discount: -$<%= Number(o.discount_amount).toFixed(2) %></div>
+                  <% } %>
+                  <div><strong>Total:</strong> $<%= Number(o.total_amount).toFixed(2) %></div>
+                </div>
               </div>
               <div style="margin-top:12px;overflow:auto">
                 <% const list = (itemsByOrder && itemsByOrder[o.order_id]) ? itemsByOrder[o.order_id] : []; %>
@@ -149,6 +155,15 @@
                   </table>
                 <% } else { %>
                   <div class="note">No items found for this order.</div>
+                <% } %>
+              </div>
+              <div style="margin-top:16px; text-align:right; display:inline-flex; gap:16px; align-items:center;">
+                <a href="/orders/<%= o.order_id %>" style="color:var(--primary); font-weight:600; text-decoration:underline;">📄 View Receipt</a>
+                <% if (o.payment_method && o.payment_method.toLowerCase() === 'paypal') { %>
+                  <form method="GET" action="/refund" style="display:inline; margin:0;">
+                    <input type="hidden" name="orderId" value="<%= o.order_id %>" />
+                    <button type="submit" style="background:#d14343;color:white;border:none;padding:8px 18px;border-radius:8px;font-weight:600;cursor:pointer;">Request Refund</button>
+                  </form>
                 <% } %>
               </div>
             </div>

@@ -2,6 +2,7 @@
 const express = require('express');
 const multer = require('multer');
 const session = require('express-session');
+const axios = require('axios');
 require('dotenv').config();
 
 // Global error handlers
@@ -33,7 +34,9 @@ const cartController = require('./Controller/cartController');
 const paymentController = require('./Controller/paymentController');
 const ordersController = require('./Controller/ordersController');
 const accountController = require('./Controller/accountController');
+const netsQr = require('./services/nets');
 const UserModel = require('./models/user');
+const Order = require('./models/order');
 const cartitems = require('./models/cartitems');
 const speakeasy = require('speakeasy');
 const QRCode = require('qrcode');
@@ -249,7 +252,7 @@ app.post('/checkout/confirm', (req, res) => {
 // GET /checkout_success - Display success page after payment
 app.get('/checkout_success', (req, res) => {
   const isMember = !!(req.session.user && req.session.user.is_member);
-  // Get payment details from query params
+  // Get payment details from query params or session
   const amount = parseFloat(req.query.amount) || 0;
   const cashback = isMember ? amount * 0.05 : 0;
   const totals = {
@@ -258,13 +261,14 @@ app.get('/checkout_success', (req, res) => {
     cashback: cashback,
     total: amount
   };
+  const orderId = req.query.orderId || req.session.lastOrderId || null;
   const paymentInfo = {
     name: req.session.user ? req.session.user.name : 'Guest',
     email: req.session.user ? req.session.user.email : '',
     method: req.query.paymentMethod || 'PayPal',
     reference: req.query.reference || 'N/A',
   };
-  return res.render('checkout_success', { totals, isMember, paymentInfo });
+  return res.render('checkout_success', { totals, isMember, paymentInfo, orderId });
 });
 
 // PayPal API Routes
@@ -272,6 +276,76 @@ app.post('/api/paypal/create-order', paymentController.createOrder);
 app.post('/api/paypal/pay', paymentController.pay);
 app.get('/api/paypal/cart-items', paymentController.getCartItems);
 app.get('/api/paypal/cart-details', paymentController.getCartDetails);
+
+// NETS QR API Routes
+app.post('/generateNETSQR', netsQr.generateQrCode);
+app.get('/nets-qr/success', (req, res) => {
+  res.render('netsTxnSuccessStatus', { message: 'Transaction Successful!' });
+});
+app.get('/nets-qr/fail', (req, res) => {
+  res.render('netsTxnFailStatus', { message: 'Transaction Failed. Please try again.' });
+});
+app.get('/sse/payment-status/:txnRetrievalRef', async (req, res) => {
+  res.set({
+    'Content-Type': 'text/event-stream',
+    'Cache-Control': 'no-cache',
+    'Connection': 'keep-alive'
+  });
+
+  const txnRetrievalRef = req.params.txnRetrievalRef;
+  let pollCount = 0;
+  const maxPolls = 60;
+  let frontendTimeoutStatus = 0;
+
+  const interval = setInterval(async () => {
+    pollCount++;
+
+    try {
+      const response = await axios.post(
+        'https://sandbox.nets.openapipaas.com/api/v1/common/payments/nets-qr/query',
+        { txn_retrieval_ref: txnRetrievalRef, frontend_timeout_status: frontendTimeoutStatus },
+        {
+          headers: {
+            'api-key': process.env.API_KEY,
+            'project-id': process.env.PROJECT_ID,
+            'Content-Type': 'application/json'
+          }
+        }
+      );
+
+      console.log("Polling response:", response.data);
+      res.write(`data: ${JSON.stringify(response.data)}\n\n`);
+      
+      const resData = response.data.result.data;
+
+      if (resData.response_code == "00" && resData.txn_status === 1) {
+        res.write(`data: ${JSON.stringify({ success: true })}\n\n`);
+        clearInterval(interval);
+        res.end();
+      } else if (frontendTimeoutStatus == 1 && resData && (resData.response_code !== "00" || resData.txn_status === 2)) {
+        res.write(`data: ${JSON.stringify({ fail: true, ...resData })}\n\n`);
+        clearInterval(interval);
+        res.end();
+      }
+
+    } catch (err) {
+      clearInterval(interval);
+      res.write(`data: ${JSON.stringify({ error: err.message })}\n\n`);
+      res.end();
+    }
+
+    if (pollCount >= maxPolls) {
+      clearInterval(interval);
+      frontendTimeoutStatus = 1;
+      res.write(`data: ${JSON.stringify({ fail: true, error: "Timeout" })}\n\n`);
+      res.end();
+    }
+  }, 5000);
+
+  req.on('close', () => {
+    clearInterval(interval);
+  });
+});
 
 // Admin
 app.get('/admin', requireAdmin, adminController.getDashboard);
@@ -309,9 +383,19 @@ app.post('/admin/orders/:id/status', requireAdmin, adminOrdersController.postSta
 app.post('/admin/orders/:id/refund', requireAdmin, adminOrdersController.postRefund);
 app.get('/admin/reports', requireAdmin, adminReportsController.dashboard);
 
+
 // Orders
 app.get('/orders', requireAuth, ordersController.getMyOrders);
-// Account
+app.get('/orders/:orderId', requireAuth, ordersController.getOrderReceipt);
+
+// Refund routes
+app.get('/refund', requireAuth, (req, res) => {
+  // Render refund.ejs with orderId from query
+  const orderId = req.query.orderId;
+  res.render('refund', { orderId });
+});
+app.post('/refund/paypal', requireAuth, paymentController.refund);
+
 app.get('/account', requireAuth, accountController.getAccount);
 app.post('/account', requireAuth, accountController.postAccount);
 app.post('/account/header', requireAuth, upload.single('header_image'), accountController.postHeader);

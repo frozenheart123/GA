@@ -1,0 +1,82 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Payment Successful</title>
+    <style>
+        :root {
+            --primary: #d14343;
+            --primary-ink: #8b1f1f;
+            --ink: #0f172a;
+            --muted: #6b7280;
+            --card: #ffffff;
+            --ring: #e5e7eb;
+            --shadow: 0 10px 30px rgba(15, 23, 42, .08);
+        }
+        * { box-sizing: border-box; }
+        body {
+            margin: 0;
+            font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
+            font-size: 18px;
+            line-height: 1.6;
+            color: var(--ink);
+            background: linear-gradient(180deg, #fff, #fff 45%, #fdf6f6 100%);
+            -webkit-font-smoothing: antialiased;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            padding: 20px;
+        }
+        .container {
+            background: var(--card);
+            border: 1px solid var(--ring);
+            border-radius: 14px;
+            box-shadow: var(--shadow);
+            padding: 40px;
+            max-width: 500px;
+            width: 100%;
+            text-align: center;
+        }
+        h1 {
+            margin: 0 0 10px 0;
+            font-size: 1.5rem;
+            color: #22c55e;
+        }
+        p {
+            margin: 8px 0;
+            color: var(--muted);
+            font-size: 1.1rem;
+        }
+        img {
+            width: 100px;
+            height: 100px;
+            margin: 20px 0;
+        }
+        a {
+            display: inline-block;
+            margin-top: 20px;
+            padding: 12px 24px;
+            background: #d14343;
+            color: white;
+            border-radius: 10px;
+            text-decoration: none;
+            font-weight: 800;
+            transition: background 0.3s;
+        }
+        a:hover {
+            background: #8b1f1f;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>✓ Payment Successful!</h1>
+        <p><%= message %></p>
+        <p>Thank you for your payment! Your order has been confirmed.</p>
+        <img src="/images/greenTick.png" alt="Success" />
+        <a href="/orders">View My Orders</a>
+    </div>
+</body>
+</html>

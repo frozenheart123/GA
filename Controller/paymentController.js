@@ -5,7 +5,6 @@ const CartItems = require('../models/cartitems');
 const Orders = require('../models/order');
 const OrderDetails = require('../models/order');
 const productModel = require('../models/product');
-const UserModel = require('../models/user');
 const paypal = require('../services/paypal');
 
 exports.generateCheckout = async (req, res, next) => {
@@ -145,22 +144,25 @@ exports.createOrder = async (req, res) => {
       return res.status(400).json({ error: "Cart is empty", message: "No items in cart" });
     }
 
-    const totalAmount = items.reduce((sum, item) => sum + Number(item.total || item.price * item.quantity || 0), 0);
+    // Apply membership discount before sending amount to PayPal
+    const isMember = !!(req.session?.user && req.session.user.is_member);
+    const totals = computeCartTotals(items, isMember);
+    const payableAmount = Number((totals.total || 0).toFixed(2));
 
-    console.log('createOrder: calculated totalAmount', { totalAmount, itemsCount: items.length });
+    console.log('createOrder: calculated totals with membership', { isMember, totals, payableAmount });
 
-    if (!totalAmount || totalAmount <= 0) {
-      console.error('createOrder: refusing to create PayPal order because totalAmount is not positive', {
-        totalAmount,
+    if (!payableAmount || payableAmount <= 0) {
+      console.error('createOrder: refusing to create PayPal order because payableAmount is not positive', {
+        payableAmount,
         itemsCount: items.length
       });
       return res.status(400).json({ error: 'Cart total must be greater than zero', message: 'Invalid cart total' });
     }
 
-    console.log('createOrder: Creating PayPal order for amount:', totalAmount);
+    console.log('createOrder: Creating PayPal order for amount:', payableAmount);
 
     // Create PayPal order
-    const order = await paypal.createOrder(totalAmount.toFixed(2));
+    const order = await paypal.createOrder(payableAmount.toFixed(2));
 
     if (!order || !order.id) {
       console.error('createOrder: PayPal createOrder returned unexpected payload:', order);
@@ -228,6 +230,7 @@ exports.pay = async (req, res) => {
   console.log("Session user:", req.session?.user);
   
   try {
+    let transaction = null;
     // Validate user is logged in
     if (!req.session.user) {
       console.warn('pay: user not logged in');
@@ -264,7 +267,7 @@ exports.pay = async (req, res) => {
     const isoString = capture.purchase_units[0].payments.captures[0].create_time;
     const mysqlDatetime = isoString.replace("T", " ").replace("Z", "");
 
-    const transaction = {
+    const transactionBase = {
       orderId: capture.id,
       payerId: capture.payer.payer_id,
       payerEmail: capture.payer.email_address,
@@ -272,12 +275,8 @@ exports.pay = async (req, res) => {
       currency: capture.purchase_units[0].payments.captures[0].amount.currency_code,
       status: capture.status,
       time: mysqlDatetime,
+      captureId: capture.purchase_units[0].payments.captures[0].id,
     };
-
-    console.log('pay: Saving transaction to database:', transaction);
-
-    // Save transaction to DB
-    await createTransaction(transaction);
 
     // Get cart items for this user
     const items = await getCartItemsByUserId(userId);
@@ -289,74 +288,90 @@ exports.pay = async (req, res) => {
 
     console.log('pay: Found', items.length, 'cart items for userId:', userId);
 
-    // Calculate total amount
-    const totalAmount = items.reduce((sum, item) => sum + Number(item.total || item.price * item.quantity || 0), 0);
+    // Apply membership discount to totals so DB and PayPal stay in sync
+    const isMember = !!(req.session?.user && req.session.user.is_member);
+    const totals = computeCartTotals(items, isMember);
+    const subtotalAmount = Number((totals.subtotal || 0).toFixed(2));
+    const discountAmount = Number((totals.cashback || 0).toFixed(2));
+    const payableAmount = Number((totals.total || 0).toFixed(2));
 
-    console.log('pay: Total amount calculated:', totalAmount);
+    console.log('pay: Totals with membership applied', { isMember, subtotalAmount, discountAmount, payableAmount });
 
-    // Use provided address, fallback to user profile
-    const providedAddress = (req.body.address || '').trim();
-    console.log('pay: Provided address from request:', providedAddress);
+    if (!payableAmount || payableAmount <= 0) {
+      console.error('pay: Computed payableAmount is not positive', { payableAmount });
+      return res.status(400).json({ error: 'Cart total must be greater than zero', message: 'Invalid cart total' });
+    }
+
+    // Warn if captured amount does not match what we computed (should not happen if createOrder used same totals)
+    const capturedAmount = Number(capture.purchase_units[0].payments.captures[0].amount.value);
+    if (Math.abs(capturedAmount - payableAmount) > 0.01) {
+      console.warn('pay: Captured amount differs from computed payable', { capturedAmount, payableAmount });
+    }
 
     // Order creation in database
     let dbOrderId = null;
-    
+
+    // Prepare order items once for DB insert and stock updates
+    const orderItems = items.map(item => ({
+      productId: item.productId || item.product_id,
+      quantity: item.quantity,
+      price: item.price,
+      total: item.total || (item.price * item.quantity)
+    }));
+
     // Check if Orders methods exist
     console.log('pay: Checking if Orders.createOrder exists:', typeof Orders.createOrder);
-    console.log('pay: Checking if Orders.addOrderItems exists:', typeof Orders.addOrderItems);
-    
     if (Orders && Orders.createOrder && typeof Orders.createOrder === 'function') {
       try {
         console.log('pay: Creating order in database for userId:', userId);
-        const orderResult = await Orders.createOrder(userId, totalAmount, providedAddress || null);
-        console.log('pay: Order result from DB:', orderResult);
-        dbOrderId = orderResult && orderResult.insertId ? orderResult.insertId : null;
+        // Detect payment method
+        let paymentMethod = 'PayPal';
+        if (req.body.netsTxnId) {
+          paymentMethod = 'Nets';
+        } else if (req.body.paynowTxnId) {
+          paymentMethod = 'PayNow';
+        }
+        dbOrderId = await Orders.createOrder(userId, subtotalAmount, discountAmount, payableAmount, orderItems, paymentMethod);
         console.log('pay: Order created in database with ID:', dbOrderId);
-
-        // Prepare order items
-        const orderItems = items.map(item => ({
-          productId: item.productId || item.product_id,
-          quantity: item.quantity,
-          price: item.price,
-          total: item.total || (item.price * item.quantity)
-        }));
-
-        console.log('pay: Preparing to add order items:', orderItems);
-
-        // Add order items to order_details if method exists
-        if (Orders.addOrderItems && typeof Orders.addOrderItems === 'function') {
-          await Orders.addOrderItems(dbOrderId, orderItems, providedAddress || null);
-          console.log('pay: Order items added');
-        }
-
-        // Decrement stock for each product ordered
-        console.log('pay: Order items added. Now decrementing stock for', orderItems.length, 'items');
-        const failedDecrements = [];
-        for (let item of orderItems) {
-          try {
-            console.log(`[pay] Decrementing productId ${item.productId || item.product_id} by ${item.quantity}`);
-            const result = await decrementProductStock(item.productId || item.product_id, item.quantity);
-            if (!result || !result.affectedRows || result.affectedRows === 0) {
-              console.error(`[pay] Stock decrement failed for productId ${item.productId || item.product_id}`);
-              failedDecrements.push({ productId: item.productId || item.product_id, quantity: item.quantity });
-            } else {
-              console.log(`[pay] ✓ Stock decremented for productId ${item.productId || item.product_id}`);
-            }
-          } catch (decrementErr) {
-            console.error(`[pay] Error decrementing stock for productId ${item.productId || item.product_id}:`, decrementErr);
-            failedDecrements.push({ productId: item.productId || item.product_id, quantity: item.quantity, error: decrementErr.message });
-          }
-        }
-
-        if (failedDecrements.length > 0) {
-          console.warn(`[pay] ${failedDecrements.length} stock decrements failed:`, failedDecrements);
-        }
       } catch (orderErr) {
         console.warn('pay: Error creating order in database (continuing anyway):', orderErr.message);
         // Don't fail - we'll just clear the cart
       }
     } else {
       console.warn('pay: Orders.createOrder method not found - skipping order creation');
+    }
+
+    transaction = {
+      ...transactionBase,
+      orderId: dbOrderId || transactionBase.orderId
+    };
+
+    console.log('pay: Saving transaction to database:', transaction);
+
+    // Save transaction to DB
+    await createTransaction(transaction);
+
+    // Decrement stock for each product ordered
+    console.log('pay: Order items prepared. Now decrementing stock for', orderItems.length, 'items');
+    const failedDecrements = [];
+    for (let item of orderItems) {
+      try {
+        console.log(`[pay] Decrementing productId ${item.productId || item.product_id} by ${item.quantity}`);
+        const result = await decrementProductStock(item.productId || item.product_id, item.quantity);
+        if (!result || !result.affectedRows || result.affectedRows === 0) {
+          console.error(`[pay] Stock decrement failed for productId ${item.productId || item.product_id}`);
+          failedDecrements.push({ productId: item.productId || item.product_id, quantity: item.quantity });
+        } else {
+          console.log(`[pay] ✓ Stock decremented for productId ${item.productId || item.product_id}`);
+        }
+      } catch (decrementErr) {
+        console.error(`[pay] Error decrementing stock for productId ${item.productId || item.product_id}:`, decrementErr);
+        failedDecrements.push({ productId: item.productId || item.product_id, quantity: item.quantity, error: decrementErr.message });
+      }
+    }
+
+    if (failedDecrements.length > 0) {
+      console.warn(`[pay] ${failedDecrements.length} stock decrements failed:`, failedDecrements);
     }
 
     // Get cart item IDs to remove
@@ -402,42 +417,78 @@ exports.pay = async (req, res) => {
 exports.getOrders = async (req, res) => {
   try {
     const userId = req.session.user.userId;
-    
-    Orders.getOrdersByUser(userId, (err, orders) => {
-      if (err) {
-        console.error("Error fetching orders:", err);
-        return res.status(500).json({ error: "Failed to fetch orders" });
-      }
-      res.json({ success: true, orders });
+    const orders = await new Promise((resolve, reject) => {
+      Orders.getOrdersByUser(userId, (err, orders) => {
+        if (err) reject(err);
+        else resolve(orders);
+      });
     });
+
+    // Attach paymentInfo for each order
+    for (const order of orders) {
+      const transactions = await Transaction.getByOrderId(order.id || order.orderId);
+      const transaction = Array.isArray(transactions) ? transactions[0] : transactions;
+      let paymentInfo = { method: 'Unknown', reference: '' };
+      if (transaction) {
+        if (transaction.payerId === 'NETS') {
+          paymentInfo.method = 'NETS QR';
+          paymentInfo.reference = transaction.captureId || transaction.payerId;
+        } else if (transaction.payerId === 'PAYNOW') {
+          paymentInfo.method = 'PayNow';
+          paymentInfo.reference = transaction.captureId || transaction.payerId;
+        } else if (transaction.payerEmail && transaction.captureId) {
+          paymentInfo.method = 'PayPal';
+          paymentInfo.reference = transaction.captureId;
+        } else if (transaction.payerEmail) {
+          paymentInfo.method = 'PayPal';
+          paymentInfo.reference = transaction.payerEmail;
+        } else if (transaction.payerId) {
+          paymentInfo.method = 'PayPal';
+          paymentInfo.reference = transaction.payerId;
+        }
+      }
+      order.paymentInfo = paymentInfo;
+    }
+
+    res.json({ success: true, orders });
   } catch (err) {
-    console.error("Get orders error:", err);
-    res.status(500).json({ error: "Failed to fetch orders", message: err.message });
+    console.error('Get orders error:', err);
+    res.status(500).json({ error: 'Failed to fetch orders', message: err.message });
   }
 };
 
-// Get order details by order ID
-exports.getOrderDetails = async (req, res) => {
+// Refund a PayPal payment for an order
+exports.refund = async (req, res) => {
   try {
-    const orderId = req.params.orderId;
-    
-    OrderDetails.getByOrderId(orderId, (err, items) => {
-      if (err) {
-        console.error("Error fetching order details:", err);
-        return res.status(500).json({ error: "Failed to fetch order details" });
+    const { orderId, reason, amount } = req.body;
+    if (!orderId) return res.render('refund', { error: 'Order ID required', orderId, reason });
+    // Find transaction for this order
+    const transaction = await Transaction.getByOrderId(orderId);
+    if (!transaction || !transaction.captureId) {
+      return res.render('refund', { error: 'No PayPal transaction found for this order', orderId, reason });
+    }
+    // Optionally allow partial refund: req.body.amount
+    const refundResult = await paypal.refundPayment(transaction.captureId, amount);
+    if (refundResult && refundResult.status === 'COMPLETED') {
+      // Update transaction status to REFUNDED and store refund reason
+      await Transaction.updateStatusByOrderId(orderId, 'REFUNDED', reason);
+      // Restore product stock
+      const orderItems = await Orders.getItemsByOrderId(orderId);
+      for (const item of orderItems) {
+        const productId = item.product_id || item.productid;
+        if (!productId) continue;
+        // Increment stock by the quantity bought
+        await productModel.incrementStock(productId, item.quantity);
       }
-      
-      const total = items.reduce((sum, item) => sum + Number(item.total || 0), 0);
-      
-      res.json({ 
-        success: true, 
-        orderId,
-        items,
-        total: total.toFixed(2)
-      });
-    });
+      // Update order status to refunded and redirect to receipt page
+      await Orders.updateStatus(orderId, 'refunded');
+      return res.redirect(`/orders/${orderId}`);
+    }
+    return res.render('refund', { error: 'Refund failed', details: refundResult, orderId, reason });
   } catch (err) {
-    console.error("Get order details error:", err);
-    res.status(500).json({ error: "Failed to fetch order details", message: err.message });
+    console.error('PayPal refund error:', err);
+    return res.render('refund', { error: 'Refund failed', message: err.message, orderId: req.body.orderId, reason: req.body.reason });
   }
 };
+
+// ...existing code...
