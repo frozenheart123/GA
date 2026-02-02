@@ -18,6 +18,7 @@ process.on('uncaughtException', (error) => {
   console.error('Stack:', error.stack);
 });
 
+
 // Controllers
 const homeController = require('./Controller/homeController');
 const productsController = require('./Controller/productsController');
