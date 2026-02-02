@@ -378,6 +378,7 @@ app.post('/admin/users/:id/resetpw', requireAdmin, adminUsersController.postRese
 app.post('/admin/users/:id/member', requireAdmin, adminUsersController.postMakeMember);
 app.post('/admin/users/:id/member/clear', requireAdmin, adminUsersController.postClearMember);
 app.get('/admin/orders', requireAdmin, adminOrdersController.dashboard);
+app.get('/admin/orders/:orderId/print', requireAdmin, adminOrdersController.printReceipt);
 app.post('/admin/orders/:id/status', requireAdmin, adminOrdersController.postStatus);
 app.post('/admin/orders/:id/refund', requireAdmin, adminOrdersController.postRefund);
 app.get('/admin/reports', requireAdmin, adminReportsController.dashboard);

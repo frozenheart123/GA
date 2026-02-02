@@ -175,18 +175,18 @@
             <h3>Customer Information</h3>
             <div class="info-row">
               <span class="info-label">Name:</span>
-              <span class="info-value"><%= user.name %></span>
+              <span class="info-value"><%= order.user_name || (user && user.name) || 'Guest' %></span>
             </div>
-            <% if (user.email) { %>
+            <% if (order.user_email || (user && user.email)) { %>
             <div class="info-row">
               <span class="info-label">Email:</span>
-              <span class="info-value"><%= user.email %></span>
+              <span class="info-value"><%= order.user_email || (user && user.email) %></span>
             </div>
             <% } %>
-            <% if (user.contact_number) { %>
+            <% if (order.user_contact || (user && user.contact_number)) { %>
             <div class="info-row">
               <span class="info-label">Phone:</span>
-              <span class="info-value"><%= user.contact_number %></span>
+              <span class="info-value"><%= order.user_contact || (user && user.contact_number) %></span>
             </div>
             <% } %>
           </div>

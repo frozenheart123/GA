@@ -343,6 +343,9 @@ exports.pay = async (req, res) => {
         }
         dbOrderId = await Orders.createOrder(userId, subtotalAmount, discountAmount, payableAmount, orderItems, paymentMethod);
         console.log('pay: Order created in database with ID:', dbOrderId);
+        if (req.session) {
+          req.session.lastOrderId = dbOrderId;
+        }
       } catch (orderErr) {
         console.warn('pay: Error creating order in database (continuing anyway):', orderErr.message);
         // Don't fail - we'll just clear the cart
