@@ -266,6 +266,7 @@ exports.completeOrder = async (req, res) => {
     await removeCartBulk(userId, productIds);
     if (req.session) {
       req.session.cart = [];
+      req.session.lastOrderId = orderId;
     }
 
     return res.json({ success: true, orderId, failedDecrements });

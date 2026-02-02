@@ -278,7 +278,41 @@ app.get('/api/paypal/cart-details', paymentController.getCartDetails);
 
 // NETS QR API Routes
 app.post('/generateNETSQR', netsQr.generateQrCode);
-app.get('/nets-qr/success', (req, res) => {
+app.get('/nets-qr/success', async (req, res) => {
+  const isMember = !!(req.session.user && req.session.user.is_member);
+  const txnRetrievalRef = req.query.txn_retrieval_ref;
+  
+  if (!txnRetrievalRef) {
+    return res.render('netsTxnSuccessStatus', { message: 'Transaction Successful!' });
+  }
+  
+  try {
+    // Get NETS transaction details to retrieve order info
+    const NetsTransaction = require('./models/netsTransaction');
+    const netsEntry = await NetsTransaction.getByTxnRetrievalRef(txnRetrievalRef);
+    
+    if (netsEntry && netsEntry.order_id) {
+      const amount = parseFloat(netsEntry.amount) || 0;
+      const cashback = isMember ? amount * 0.05 : 0;
+      const totals = {
+        subtotal: amount,
+        tax: 0,
+        cashback: cashback,
+        total: amount
+      };
+      const paymentInfo = {
+        name: req.session.user ? req.session.user.name : 'Guest',
+        email: req.session.user ? req.session.user.email : '',
+        method: 'NETS QR',
+        reference: txnRetrievalRef,
+      };
+      return res.render('checkout_success', { totals, isMember, paymentInfo, orderId: netsEntry.order_id });
+    }
+  } catch (err) {
+    console.error('Error fetching NETS transaction details:', err);
+  }
+  
+  // Fallback to simple success page
   res.render('netsTxnSuccessStatus', { message: 'Transaction Successful!' });
 });
 app.get('/nets-qr/fail', (req, res) => {
