@@ -1,4 +1,4 @@
-const fetch = require('node-fetch');
+const axios = require('axios');
 require('dotenv').config();
 
 const PAYPAL_CLIENT = process.env.PAYPAL_CLIENT_ID;
@@ -6,27 +6,24 @@ const PAYPAL_SECRET = process.env.PAYPAL_CLIENT_SECRET;
 const PAYPAL_API = process.env.PAYPAL_API;
 
 async function getAccessToken() {
-  const response = await fetch(`${PAYPAL_API}/v1/oauth2/token`, {
-    method: 'POST',
-    headers: {
-      'Authorization': 'Basic ' + Buffer.from(PAYPAL_CLIENT + ':' + PAYPAL_SECRET).toString('base64'),
-      'Content-Type': 'application/x-www-form-urlencoded'
-    },
-    body: 'grant_type=client_credentials'
-  });
-  const data = await response.json();
-  return data.access_token;
+  const response = await axios.post(
+    `${PAYPAL_API}/v1/oauth2/token`,
+    new URLSearchParams({ grant_type: 'client_credentials' }).toString(),
+    {
+      headers: {
+        'Authorization': 'Basic ' + Buffer.from(PAYPAL_CLIENT + ':' + PAYPAL_SECRET).toString('base64'),
+        'Content-Type': 'application/x-www-form-urlencoded'
+      }
+    }
+  );
+  return response.data.access_token;
 }
 
 async function createOrder(amount) {
   const accessToken = await getAccessToken();
-  const response = await fetch(`${PAYPAL_API}/v2/checkout/orders`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'Authorization': `Bearer ${accessToken}`
-    },
-    body: JSON.stringify({
+  const response = await axios.post(
+    `${PAYPAL_API}/v2/checkout/orders`,
+    {
       intent: 'CAPTURE',
       purchase_units: [{
         amount: {
@@ -34,21 +31,30 @@ async function createOrder(amount) {
           value: amount
         }
       }]
-    })
-  });
-  return await response.json();
+    },
+    {
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${accessToken}`
+      }
+    }
+  );
+  return response.data;
 }
 
 async function captureOrder(orderId) {
   const accessToken = await getAccessToken();
-  const response = await fetch(`${PAYPAL_API}/v2/checkout/orders/${orderId}/capture`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'Authorization': `Bearer ${accessToken}`
+  const response = await axios.post(
+    `${PAYPAL_API}/v2/checkout/orders/${orderId}/capture`,
+    null,
+    {
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${accessToken}`
+      }
     }
-  });
-  const data = await response.json();
+  );
+  const data = response.data;
   console.log('PayPal captureOrder response:', data);
   return data;
 }
@@ -69,16 +75,17 @@ async function refundPayment(captureId, amount) {
       currency_code: 'SGD'
     }
   } : undefined;
-  const response = await fetch(url, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'Authorization': `Bearer ${accessToken}`
-    },
-    body: body ? JSON.stringify(body) : undefined
-  });
-  const data = await response.json();
-  return data;
+  const response = await axios.post(
+    url,
+    body || null,
+    {
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${accessToken}`
+      }
+    }
+  );
+  return response.data;
 }
 
 module.exports.refundPayment = refundPayment;
