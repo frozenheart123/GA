@@ -1,9 +1,27 @@
 const db = require('../db');
 
-
 const isMissingTableError = (err) => {
   return err && (err.code === 'ER_NO_SUCH_TABLE' || err.code === 'ER_BAD_TABLE_ERROR');
 };
+
+const ensureCaptureColumns = () => {
+  const columns = [
+    { name: 'captureId', definition: 'VARCHAR(255) DEFAULT NULL' },
+    { name: 'refundReason', definition: 'VARCHAR(255) DEFAULT NULL' }
+  ];
+
+  columns.forEach((column) => {
+    const sql = `ALTER TABLE transactions ADD COLUMN \`${column.name}\` ${column.definition}`;
+    db.query(sql, (err) => {
+      if (!err) return;
+      if (isMissingTableError(err)) return;
+      if (err.code === 'ER_DUP_FIELDNAME') return;
+      console.warn('transactions schema sync failed:', err.code || err.message);
+    });
+  });
+};
+
+ensureCaptureColumns();
 
 const Transaction = {
   create: (data, callback) => {
