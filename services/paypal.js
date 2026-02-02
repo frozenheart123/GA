@@ -14,7 +14,20 @@ async function getAccessToken() {
     },
     body: 'grant_type=client_credentials'
   });
+  
+  if (!response.ok) {
+    const errorText = await response.text();
+    console.error('PayPal authentication failed:', response.status, errorText);
+    throw new Error(`PayPal authentication error: ${response.status}. Check your PAYPAL_CLIENT_ID and PAYPAL_CLIENT_SECRET in .env`);
+  }
+  
   const data = await response.json();
+  
+  if (!data.access_token) {
+    console.error('PayPal auth response missing access_token:', data);
+    throw new Error('PayPal authentication failed: No access token received');
+  }
+  
   return data.access_token;
 }
 
@@ -36,6 +49,13 @@ async function createOrder(amount) {
       }]
     })
   });
+  
+  if (!response.ok) {
+    const errorText = await response.text();
+    console.error('PayPal createOrder HTTP error:', response.status, errorText);
+    throw new Error(`PayPal API error: ${response.status} - ${errorText}`);
+  }
+  
   return await response.json();
 }
 
@@ -48,6 +68,13 @@ async function captureOrder(orderId) {
       'Authorization': `Bearer ${accessToken}`
     }
   });
+  
+  if (!response.ok) {
+    const errorText = await response.text();
+    console.error('PayPal captureOrder HTTP error:', response.status, errorText);
+    throw new Error(`PayPal API error: ${response.status} - ${errorText}`);
+  }
+  
   const data = await response.json();
   console.log('PayPal captureOrder response:', data);
   return data;
