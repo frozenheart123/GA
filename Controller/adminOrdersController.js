@@ -2,6 +2,7 @@ const Order = require('../models/order');
 const Product = require('../models/product');
 const Transaction = require('../models/transaction');
 const paypal = require('../services/paypal');
+const RefundRequest = require('../models/refundRequest');
 
 const STATUSES = Order.statusOptions();
 
@@ -24,6 +25,11 @@ exports.dashboard = async (req, res) => {
     }
     const ids = orders.map(o => o.order_id);
     const orderItems = await Order.getItemsForOrders(ids);
+    const refundRequests = await RefundRequest.getByOrderIds(ids);
+    const refundByOrder = {};
+    for (const rr of refundRequests) {
+      refundByOrder[rr.order_id] = rr;
+    }
     const itemsByOrder = {};
     for (const item of orderItems) {
       if (!itemsByOrder[item.order_id]) itemsByOrder[item.order_id] = [];
@@ -32,6 +38,7 @@ exports.dashboard = async (req, res) => {
     res.render('admin_orders', {
       orders,
       itemsByOrder,
+      refundByOrder,
       statuses: ['All', ...STATUSES],
       q: q || '',
       status: status || 'All',
@@ -62,6 +69,11 @@ exports.postRefund = async (req, res) => {
       return res.redirect('/admin/orders?refund=error');
     }
 
+    const refundRequest = await RefundRequest.getByOrderId(orderId);
+    if (!refundRequest || String(refundRequest.status) !== 'requested') {
+      return res.redirect('/admin/orders?refund=missing_request');
+    }
+
     let transaction = null;
     transaction = await Transaction.getByOrderId(orderId);
     let paymentMethod = String(order.payment_method || '').toLowerCase();
@@ -79,7 +91,19 @@ exports.postRefund = async (req, res) => {
       }
     }
 
-    const refundQtyMap = req.body.refund_qty || {};
+    const normalizeRefundQtyMap = (body) => {
+      if (body && typeof body.refund_qty === 'object' && body.refund_qty !== null) {
+        return body.refund_qty;
+      }
+      const map = {};
+      Object.keys(body || {}).forEach((key) => {
+        if (!key.startsWith('refund_qty[')) return;
+        const id = key.slice('refund_qty['.length, key.length - 1);
+        if (id) map[id] = body[key];
+      });
+      return map;
+    };
+    const refundQtyMap = normalizeRefundQtyMap(req.body);
     const items = await Order.getItemsWithIdsByOrderId(orderId);
     if (!items.length) {
       return res.redirect('/admin/orders?refund=error');
@@ -137,7 +161,11 @@ exports.postRefund = async (req, res) => {
     const oldDiscount = Number(order.discount_amount || 0);
     const ratio = oldSubtotal > 0 ? (oldDiscount / oldSubtotal) : 0;
     const refundDiscount = Number((result.refundSubtotal * ratio).toFixed(2));
-    const refundAmount = Number((result.refundSubtotal - refundDiscount).toFixed(2));
+    let refundAmount = Number((result.refundSubtotal - refundDiscount).toFixed(2));
+    const capturedAmount = Number(transaction && transaction.amount ? transaction.amount : order.total_amount || 0);
+    if (capturedAmount > 0 && refundAmount > capturedAmount) {
+      refundAmount = Number(capturedAmount.toFixed(2));
+    }
     if (!refundAmount || refundAmount <= 0) {
       return res.redirect('/admin/orders?refund=error');
     }
@@ -171,6 +199,8 @@ exports.postRefund = async (req, res) => {
     if (result.refundedUnits >= result.totalUnits) {
       await Order.updateStatus(orderId, 'refunded');
     }
+    const adminId = req.session?.user?.user_id || req.session?.user?.userId || req.session?.user?.id || null;
+    await RefundRequest.markApproved(orderId, adminId, 'Refund processed');
     return res.redirect('/admin/orders?refund=' + refundAlert);
   } catch (e) {
     console.error('refund order error:', e);

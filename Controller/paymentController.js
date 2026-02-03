@@ -6,6 +6,7 @@ const Orders = require('../models/order');
 const OrderDetails = require('../models/order');
 const productModel = require('../models/product');
 const paypal = require('../services/paypal');
+const RefundRequest = require('../models/refundRequest');
 
 exports.generateCheckout = async (req, res, next) => {
   try {
@@ -470,37 +471,47 @@ exports.getOrders = async (req, res) => {
   }
 };
 
-// Refund a PayPal payment for an order
+// Submit a refund request (admin will approve and process)
 exports.refund = async (req, res) => {
   try {
-    const { orderId, reason, amount } = req.body;
+    const { orderId, reason, details } = req.body;
+    if (!req.session.user) {
+      return res.render('refund', { error: 'Please log in to submit a refund request.', orderId, reason });
+    }
+    const userId = req.session.user.userId || req.session.user.user_id || req.session.user.id;
     if (!orderId) return res.render('refund', { error: 'Order ID required', orderId, reason });
-    // Find transaction for this order
-    const transaction = await Transaction.getByOrderId(orderId);
-    if (!transaction || !transaction.captureId) {
-      return res.render('refund', { error: 'No PayPal transaction found for this order', orderId, reason });
+
+    const order = await Orders.getById(orderId);
+    if (!order || String(order.user_id) !== String(userId)) {
+      return res.render('refund', { error: 'Invalid order or not allowed.', orderId, reason });
     }
-    // Optionally allow partial refund: req.body.amount
-    const refundResult = await paypal.refundPayment(transaction.captureId, amount);
-    if (refundResult && refundResult.status === 'COMPLETED') {
-      // Update transaction status to REFUNDED and store refund reason
-      await Transaction.updateStatusByOrderId(orderId, 'REFUNDED', reason);
-      // Restore product stock
-      const orderItems = await Orders.getItemsByOrderId(orderId);
-      for (const item of orderItems) {
-        const productId = item.product_id || item.productid;
-        if (!productId) continue;
-        // Increment stock by the quantity bought
-        await productModel.incrementStock(productId, item.quantity);
-      }
-      // Update order status to refunded and redirect to receipt page
-      await Orders.updateStatus(orderId, 'refunded');
-      return res.redirect(`/orders/${orderId}`);
-    }
-    return res.render('refund', { error: 'Refund failed', details: refundResult, orderId, reason });
+
+    const reasonLabels = {
+      rotten_goods: 'Rotten goods',
+      not_fresh: 'Items not fresh',
+      wrong_items: 'Wrong items delivered',
+      damaged: 'Items damaged',
+      late_delivery: 'Late delivery',
+      other: 'Other'
+    };
+    const baseReason = reasonLabels[reason] || reason || 'Other';
+    const fullReason = details ? `${baseReason} - ${details}` : baseReason;
+
+    await new Promise((resolve, reject) => {
+      RefundRequest.upsert(orderId, userId, fullReason, (err, result) => {
+        if (err) return reject(err);
+        resolve(result);
+      });
+    });
+
+    return res.render('refund', {
+      message: 'Refund request submitted. Admin will review your reason.',
+      orderId,
+      reason
+    });
   } catch (err) {
     console.error('PayPal refund error:', err);
-    return res.render('refund', { error: 'Refund failed', message: err.message, orderId: req.body.orderId, reason: req.body.reason });
+    return res.render('refund', { error: 'Refund request failed', message: err.message, orderId: req.body.orderId, reason: req.body.reason });
   }
 };
 

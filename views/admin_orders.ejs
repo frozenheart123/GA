@@ -128,6 +128,10 @@
     <div class="card" style="margin-top:8px;border-color:#fecdd3;background:#fff1f2">
       <div class="card-body" style="color:#991b1b;font-weight:800">Refund failed. Please try again.</div>
     </div>
+  <% } else if (refundAlert === 'missing_request') { %>
+    <div class="card" style="margin-top:8px;border-color:#fde68a;background:#fffbeb">
+      <div class="card-body" style="color:#92400e;font-weight:800">No pending refund request for this order.</div>
+    </div>
   <% } %>
   <section class="card">
     <div class="card-body">
@@ -157,6 +161,7 @@
         <tbody>
         <% if (orders && orders.length) { %>
           <% orders.forEach(function(order) { %>
+            <% const refundReq = (refundByOrder && refundByOrder[order.order_id]) ? refundByOrder[order.order_id] : null; %>
             <tr>
               <td><strong>#<%= order.order_id %></strong></td>
               <td><%= order.user_name %></td>
@@ -168,8 +173,10 @@
                 <div class="actions">
                   <a class="btn ghost small" href="/admin/orders/<%= order.order_id %>/print" target="_blank" rel="noopener">Print</a>
                   <% const method = (order.payment_method || '').toLowerCase(); %>
-                  <% if (String(order.status).toLowerCase() !== 'refunded' && (method === 'paypal' || !method)) { %>
+                  <% if (String(order.status).toLowerCase() !== 'refunded' && (method === 'paypal' || !method) && refundReq && refundReq.status === 'requested') { %>
                     <button class="btn danger small" type="button" data-refund-btn data-order-id="<%= order.order_id %>" data-items='<%- JSON.stringify(itemsByOrder[order.order_id] || []) %>'>Refund</button>
+                  <% } else if (!refundReq) { %>
+                    <button class="btn small" type="button" disabled title="No refund request">No Request</button>
                   <% } else if (String(order.status).toLowerCase() !== 'refunded' && method && method !== 'paypal') { %>
                     <button class="btn small" type="button" disabled title="Refund available for PayPal only">No Refund</button>
                   <% } %>
@@ -178,6 +185,13 @@
             </tr>
             <tr class="detail-row">
               <td colspan="7">
+                <% if (refundReq) { %>
+                  <div style="margin-bottom:10px;padding:10px;border:1px solid #fde68a;background:#fffbeb;border-radius:12px">
+                    <strong>Refund Request:</strong>
+                    <span style="margin-left:6px"><%= refundReq.reason %></span>
+                    <span style="margin-left:10px;color:#92400e;font-weight:700">( <%= refundReq.status %> )</span>
+                  </div>
+                <% } %>
                 <div style="display:flex;flex-wrap:wrap;gap:8px">
                   <% const items = itemsByOrder[order.order_id] || []; %>
                   <% if (items.length) { %>

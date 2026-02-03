@@ -562,3 +562,40 @@ ADD COLUMN refundReason VARCHAR(255) DEFAULT NULL;
 
 -- Verify the changes
 DESCRIBE transactions;
+
+-- Refund request flow: user submits request + reason, admin approves/rejects/refunds
+DROP TABLE IF EXISTS `refund_request`;
+CREATE TABLE `refund_request` (
+  `refund_request_id` bigint NOT NULL AUTO_INCREMENT,
+  `order_id` int NOT NULL,
+  `user_id` int NOT NULL,
+  `reason` varchar(500) NOT NULL,
+  `status` enum('requested','approved','rejected','cancelled') NOT NULL DEFAULT 'requested',
+  `admin_id` int DEFAULT NULL,
+  `admin_note` varchar(500) DEFAULT NULL,
+  `created_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `processed_at` datetime DEFAULT NULL,
+  PRIMARY KEY (`refund_request_id`),
+  UNIQUE KEY `uq_refund_request_order` (`order_id`),
+  KEY `idx_refund_request_user` (`user_id`),
+  KEY `idx_refund_request_status` (`status`),
+  CONSTRAINT `fk_refund_request_order` FOREIGN KEY (`order_id`) REFERENCES `orders` (`order_id`) ON DELETE CASCADE ON UPDATE RESTRICT,
+  CONSTRAINT `fk_refund_request_user` FOREIGN KEY (`user_id`) REFERENCES `users` (`user_id`) ON DELETE RESTRICT ON UPDATE RESTRICT,
+  CONSTRAINT `fk_refund_request_admin` FOREIGN KEY (`admin_id`) REFERENCES `users` (`user_id`) ON DELETE SET NULL ON UPDATE RESTRICT
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+
+-- Admin view: show each order with refund reason (if requested)
+CREATE OR REPLACE VIEW `admin_order_refund_requests` AS
+SELECT
+  o.`order_id`,
+  o.`user_id` AS `order_user_id`,
+  o.`status` AS `order_status`,
+  rr.`status` AS `refund_request_status`,
+  rr.`reason`,
+  rr.`created_at` AS `requested_at`,
+  rr.`admin_id`,
+  rr.`admin_note`,
+  rr.`processed_at`
+FROM `orders` o
+LEFT JOIN `refund_request` rr
+  ON rr.`order_id` = o.`order_id`;
