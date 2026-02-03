@@ -1,5 +1,5 @@
 CREATE DATABASE  IF NOT EXISTS `ga_malamart` /*!40100 DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci */ /*!80016 DEFAULT ENCRYPTION='N' */;
-USE `c372-005_team3`;
+USE `ga_malamart`;
 -- MySQL dump 10.13  Distrib 8.0.42, for Win64 (x86_64)
 --
 -- Host: localhost    Database: ga_malamart
@@ -16,6 +16,26 @@ USE `c372-005_team3`;
 /*!40014 SET @OLD_FOREIGN_KEY_CHECKS=@@FOREIGN_KEY_CHECKS, FOREIGN_KEY_CHECKS=0 */;
 /*!40101 SET @OLD_SQL_MODE=@@SQL_MODE, SQL_MODE='NO_AUTO_VALUE_ON_ZERO' */;
 /*!40111 SET @OLD_SQL_NOTES=@@SQL_NOTES, SQL_NOTES=0 */;
+
+--
+-- Temporary view structure for view `admin_order_refund_requests`
+--
+
+DROP TABLE IF EXISTS `admin_order_refund_requests`;
+/*!50001 DROP VIEW IF EXISTS `admin_order_refund_requests`*/;
+SET @saved_cs_client     = @@character_set_client;
+/*!50503 SET character_set_client = utf8mb4 */;
+/*!50001 CREATE VIEW `admin_order_refund_requests` AS SELECT 
+ 1 AS `order_id`,
+ 1 AS `order_user_id`,
+ 1 AS `order_status`,
+ 1 AS `refund_request_status`,
+ 1 AS `reason`,
+ 1 AS `requested_at`,
+ 1 AS `admin_id`,
+ 1 AS `admin_note`,
+ 1 AS `processed_at`*/;
+SET character_set_client = @saved_cs_client;
 
 --
 -- Table structure for table `membership_plan`
@@ -82,6 +102,45 @@ LOCK TABLES `mfa_backup_code` WRITE;
 UNLOCK TABLES;
 
 --
+-- Table structure for table `nets_transactions`
+--
+
+DROP TABLE IF EXISTS `nets_transactions`;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!50503 SET character_set_client = utf8mb4 */;
+CREATE TABLE `nets_transactions` (
+  `nets_transaction_id` bigint NOT NULL AUTO_INCREMENT,
+  `user_id` int DEFAULT NULL,
+  `order_id` int DEFAULT NULL,
+  `amount` decimal(10,2) NOT NULL DEFAULT '0.00',
+  `txn_retrieval_ref` varchar(128) NOT NULL,
+  `net_transaction_id` varchar(128) DEFAULT NULL,
+  `course_init_id` varchar(128) DEFAULT NULL,
+  `status` enum('pending','success','failed','timeout') NOT NULL DEFAULT 'pending',
+  `response_code` varchar(10) DEFAULT NULL,
+  `network_status` tinyint DEFAULT NULL,
+  `payload` json DEFAULT NULL,
+  `created_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `updated_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (`nets_transaction_id`),
+  UNIQUE KEY `uq_nets_txn_ref` (`txn_retrieval_ref`),
+  KEY `idx_nets_user_id` (`user_id`),
+  KEY `idx_nets_order_id` (`order_id`),
+  CONSTRAINT `fk_nets_transactions_order` FOREIGN KEY (`order_id`) REFERENCES `orders` (`order_id`) ON DELETE SET NULL ON UPDATE CASCADE,
+  CONSTRAINT `fk_nets_transactions_user` FOREIGN KEY (`user_id`) REFERENCES `users` (`user_id`) ON DELETE SET NULL ON UPDATE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+/*!40101 SET character_set_client = @saved_cs_client */;
+
+--
+-- Dumping data for table `nets_transactions`
+--
+
+LOCK TABLES `nets_transactions` WRITE;
+/*!40000 ALTER TABLE `nets_transactions` DISABLE KEYS */;
+/*!40000 ALTER TABLE `nets_transactions` ENABLE KEYS */;
+UNLOCK TABLES;
+
+--
 -- Table structure for table `order_item`
 --
 
@@ -103,7 +162,7 @@ CREATE TABLE `order_item` (
   CONSTRAINT `order_item_chk_1` CHECK ((`quantity` > 0)),
   CONSTRAINT `order_item_chk_2` CHECK ((`unit_price` >= 0)),
   CONSTRAINT `order_item_chk_3` CHECK ((`line_total` >= 0))
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+) ENGINE=InnoDB AUTO_INCREMENT=3 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 --
@@ -112,6 +171,7 @@ CREATE TABLE `order_item` (
 
 LOCK TABLES `order_item` WRITE;
 /*!40000 ALTER TABLE `order_item` DISABLE KEYS */;
+INSERT INTO `order_item` VALUES (2,1,7,3,22.00,66.00);
 /*!40000 ALTER TABLE `order_item` ENABLE KEYS */;
 UNLOCK TABLES;
 
@@ -132,6 +192,7 @@ CREATE TABLE `orders` (
   `status` enum('awaiting_payment','paid','shipped','completed','cancelled','refunded') NOT NULL DEFAULT 'awaiting_payment',
   `created_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
   `updated_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  `payment_method` varchar(50) DEFAULT NULL,
   PRIMARY KEY (`order_id`),
   KEY `idx_orders_user` (`user_id`),
   KEY `idx_orders_status` (`status`),
@@ -140,7 +201,7 @@ CREATE TABLE `orders` (
   CONSTRAINT `orders_chk_1` CHECK ((`subtotal_amount` >= 0)),
   CONSTRAINT `orders_chk_2` CHECK ((`discount_amount` >= 0)),
   CONSTRAINT `orders_chk_3` CHECK ((`total_amount` >= 0))
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+) ENGINE=InnoDB AUTO_INCREMENT=2 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 --
@@ -149,6 +210,7 @@ CREATE TABLE `orders` (
 
 LOCK TABLES `orders` WRITE;
 /*!40000 ALTER TABLE `orders` DISABLE KEYS */;
+INSERT INTO `orders` VALUES (1,2,0,66.00,0.00,66.00,'paid','2026-02-03 09:49:58','2026-02-03 10:02:59','PayPal');
 /*!40000 ALTER TABLE `orders` ENABLE KEYS */;
 UNLOCK TABLES;
 
@@ -203,45 +265,6 @@ LOCK TABLES `payment` WRITE;
 UNLOCK TABLES;
 
 --
--- Table structure for table `nets_transactions`
---
-
-DROP TABLE IF EXISTS `nets_transactions`;
-/*!40101 SET @saved_cs_client     = @@character_set_client */;
-/*!50503 SET character_set_client = utf8mb4 */;
-CREATE TABLE `nets_transactions` (
-  `nets_transaction_id` bigint NOT NULL AUTO_INCREMENT,
-  `user_id` int DEFAULT NULL,
-  `order_id` int DEFAULT NULL,
-  `amount` decimal(10,2) NOT NULL DEFAULT '0.00',
-  `txn_retrieval_ref` varchar(128) NOT NULL,
-  `net_transaction_id` varchar(128) DEFAULT NULL,
-  `course_init_id` varchar(128) DEFAULT NULL,
-  `status` enum('pending','success','failed','timeout') NOT NULL DEFAULT 'pending',
-  `response_code` varchar(10) DEFAULT NULL,
-  `network_status` tinyint DEFAULT NULL,
-  `payload` json DEFAULT NULL,
-  `created_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  `updated_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-  PRIMARY KEY (`nets_transaction_id`),
-  UNIQUE KEY `uq_nets_txn_ref` (`txn_retrieval_ref`),
-  KEY `idx_nets_user_id` (`user_id`),
-  KEY `idx_nets_order_id` (`order_id`),
-  CONSTRAINT `fk_nets_transactions_user` FOREIGN KEY (`user_id`) REFERENCES `users` (`user_id`) ON DELETE SET NULL ON UPDATE CASCADE,
-  CONSTRAINT `fk_nets_transactions_order` FOREIGN KEY (`order_id`) REFERENCES `orders` (`order_id`) ON DELETE SET NULL ON UPDATE CASCADE
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
-/*!40101 SET character_set_client = @saved_cs_client */;
-
---
--- Dumping data for table `nets_transactions`
---
-
-LOCK TABLES `nets_transactions` WRITE;
-/*!40000 ALTER TABLE `nets_transactions` DISABLE KEYS */;
-/*!40000 ALTER TABLE `nets_transactions` ENABLE KEYS */;
-UNLOCK TABLES;
-
---
 -- Table structure for table `payment_method`
 --
 
@@ -251,7 +274,7 @@ DROP TABLE IF EXISTS `payment_method`;
 CREATE TABLE `payment_method` (
   `payment_method_id` bigint NOT NULL AUTO_INCREMENT,
   `user_id` int NOT NULL,
-  `method` enum('CARD','COD','PAYPAL') NOT NULL,
+  `method` enum('CARD','COD') NOT NULL,
   `provider` varchar(50) NOT NULL,
   `provider_pm_token` varchar(128) NOT NULL,
   `card_brand` varchar(20) DEFAULT NULL,
@@ -294,12 +317,13 @@ CREATE TABLE `product` (
   `active` tinyint(1) NOT NULL DEFAULT '1',
   `created_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
   `updated_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  `is_slider` tinyint(1) NOT NULL DEFAULT '0',
   PRIMARY KEY (`product_id`),
   KEY `idx_product_type` (`product_type`),
   KEY `idx_product_name` (`name`),
   CONSTRAINT `product_chk_1` CHECK ((`quantity` >= 0)),
   CONSTRAINT `product_chk_2` CHECK ((`price` >= 0))
-) ENGINE=InnoDB AUTO_INCREMENT=6 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+) ENGINE=InnoDB AUTO_INCREMENT=8 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 --
@@ -308,7 +332,7 @@ CREATE TABLE `product` (
 
 LOCK TABLES `product` WRITE;
 /*!40000 ALTER TABLE `product` DISABLE KEYS */;
-INSERT INTO `product` VALUES (5,'meat','ss','11',11,11.00,'/images/ss.jpg',0,1,'2025-12-01 08:39:35','2025-12-01 08:39:35');
+INSERT INTO `product` VALUES (6,'meat','peter','1',23,12.00,'/images/peter.jpeg',1,'2026-02-03 09:48:53','2026-02-03 10:03:01',1),(7,'meat','liew','12',9,22.00,'/images/liew.jpeg',1,'2026-02-03 09:49:12','2026-02-03 09:49:58',0);
 /*!40000 ALTER TABLE `product` ENABLE KEYS */;
 UNLOCK TABLES;
 
@@ -377,6 +401,77 @@ LOCK TABLES `refund_item` WRITE;
 UNLOCK TABLES;
 
 --
+-- Table structure for table `refund_request`
+--
+
+DROP TABLE IF EXISTS `refund_request`;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!50503 SET character_set_client = utf8mb4 */;
+CREATE TABLE `refund_request` (
+  `refund_request_id` bigint NOT NULL AUTO_INCREMENT,
+  `order_id` int NOT NULL,
+  `user_id` int NOT NULL,
+  `reason` varchar(500) NOT NULL,
+  `status` enum('requested','approved','rejected','cancelled') NOT NULL DEFAULT 'requested',
+  `admin_id` int DEFAULT NULL,
+  `admin_note` varchar(500) DEFAULT NULL,
+  `created_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `processed_at` datetime DEFAULT NULL,
+  PRIMARY KEY (`refund_request_id`),
+  UNIQUE KEY `uq_refund_request_order` (`order_id`),
+  KEY `idx_refund_request_user` (`user_id`),
+  KEY `idx_refund_request_status` (`status`),
+  KEY `fk_refund_request_admin` (`admin_id`),
+  CONSTRAINT `fk_refund_request_admin` FOREIGN KEY (`admin_id`) REFERENCES `users` (`user_id`) ON DELETE SET NULL ON UPDATE RESTRICT,
+  CONSTRAINT `fk_refund_request_order` FOREIGN KEY (`order_id`) REFERENCES `orders` (`order_id`) ON DELETE CASCADE ON UPDATE RESTRICT,
+  CONSTRAINT `fk_refund_request_user` FOREIGN KEY (`user_id`) REFERENCES `users` (`user_id`) ON DELETE RESTRICT ON UPDATE RESTRICT
+) ENGINE=InnoDB AUTO_INCREMENT=2 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+/*!40101 SET character_set_client = @saved_cs_client */;
+
+--
+-- Dumping data for table `refund_request`
+--
+
+LOCK TABLES `refund_request` WRITE;
+/*!40000 ALTER TABLE `refund_request` DISABLE KEYS */;
+INSERT INTO `refund_request` VALUES (1,1,2,'Items not fresh - 22','approved',1,'Refund processed','2026-02-03 09:50:04','2026-02-03 10:03:01');
+/*!40000 ALTER TABLE `refund_request` ENABLE KEYS */;
+UNLOCK TABLES;
+
+--
+-- Table structure for table `transactions`
+--
+
+DROP TABLE IF EXISTS `transactions`;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!50503 SET character_set_client = utf8mb4 */;
+CREATE TABLE `transactions` (
+  `id` int NOT NULL AUTO_INCREMENT,
+  `orderId` varchar(100) NOT NULL,
+  `payerId` varchar(100) DEFAULT NULL,
+  `payerEmail` varchar(255) DEFAULT NULL,
+  `amount` decimal(10,2) DEFAULT NULL,
+  `currency` varchar(10) DEFAULT NULL,
+  `status` varchar(50) DEFAULT NULL,
+  `time` datetime DEFAULT NULL,
+  `created_at` timestamp NULL DEFAULT CURRENT_TIMESTAMP,
+  `captureId` varchar(255) DEFAULT NULL,
+  `refundReason` varchar(255) DEFAULT NULL,
+  PRIMARY KEY (`id`)
+) ENGINE=InnoDB AUTO_INCREMENT=2 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+/*!40101 SET character_set_client = @saved_cs_client */;
+
+--
+-- Dumping data for table `transactions`
+--
+
+LOCK TABLES `transactions` WRITE;
+/*!40000 ALTER TABLE `transactions` DISABLE KEYS */;
+INSERT INTO `transactions` VALUES (1,'1','PTC9TJJXUA4QC','nelson@personal.example.com',90.00,'SGD','REFUNDED','2026-02-03 01:49:59','2026-02-03 01:49:58','5AT52904N7586142Y','Admin refund');
+/*!40000 ALTER TABLE `transactions` ENABLE KEYS */;
+UNLOCK TABLES;
+
+--
 -- Table structure for table `user_cart_items`
 --
 
@@ -397,7 +492,7 @@ CREATE TABLE `user_cart_items` (
   CONSTRAINT `fk_cart_product` FOREIGN KEY (`product_id`) REFERENCES `product` (`product_id`) ON DELETE RESTRICT,
   CONSTRAINT `fk_cart_user` FOREIGN KEY (`user_id`) REFERENCES `users` (`user_id`) ON DELETE CASCADE,
   CONSTRAINT `user_cart_items_chk_1` CHECK ((`quantity` > 0))
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+) ENGINE=InnoDB AUTO_INCREMENT=3 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 --
@@ -457,10 +552,27 @@ CREATE TABLE `users` (
 
 LOCK TABLES `users` WRITE;
 /*!40000 ALTER TABLE `users` DISABLE KEYS */;
-INSERT INTO `users` VALUES (1,'admin','active','nelson','woodland','123321@gmail.com','12334567','$2b$10$qPWofls5vjX1dgA62JLbd.SkVr6hj5QL7ltHwaGpgH.ie9ODSw6OS',1,NULL,'2025-12-01','2026-12-01',1,_binary '�Z�\�t\���\�\�Tr�q Cbs~>�o\�_]���',_binary '���\n\�Z\� r��',_binary '�si\�˪�=L�\�',0,0,NULL,NULL,0,'2025-12-01 08:37:41','2025-12-01 08:40:14',NULL,'/images/1764549546970-images__1_.jpeg'),(2,'user','active','liew','woodland','liew@local','98590528','$2b$10$rfkGBYM6ZBXjbDM37RSF/enEhn7eLRy4IC3Pe8lnMcXGOY337fiei',0,NULL,NULL,NULL,1,_binary 'Eڠ�&u��8�H\�uX�{���}~\�.mQ�E\�!�N',_binary '�@�D>�\�֖y',_binary '��0d\�A\�!��l��',0,0,NULL,NULL,0,'2025-12-01 08:39:47','2025-12-02 10:06:17',NULL,'/images/1764641065769-download.jpeg');
+INSERT INTO `users` VALUES (1,'admin','active','nelson','woodland','123321@gmail.com','12334567','$2b$10$qPWofls5vjX1dgA62JLbd.SkVr6hj5QL7ltHwaGpgH.ie9ODSw6OS',1,NULL,'2025-12-01','2026-12-01',1,_binary 'öÀ%§9__>I9ýsK)rðmt¾ý9\0',_binary '1C\Ñë©¦Z',_binary 'ku	¶J\"\ã\ß ¬$',0,0,NULL,NULL,0,'2025-12-01 08:37:41','2026-02-03 09:48:37',NULL,'/images/1764549546970-images__1_.jpeg'),(2,'user','active','liew','woodland','liew@local','98590528','$2b$10$rfkGBYM6ZBXjbDM37RSF/enEhn7eLRy4IC3Pe8lnMcXGOY337fiei',0,NULL,NULL,NULL,1,_binary '\\\Ó7\äic\ÞÉºtyÂs0uCSw\èö¤M\î\ÓÎK ',_binary '3`\Þtz(\Ó`',_binary '¤\ný\Ñ.\Ù2Kj¦°C_',0,0,NULL,NULL,0,'2025-12-01 08:39:47','2026-02-03 09:48:12',NULL,'/images/1764641065769-download.jpeg');
 /*!40000 ALTER TABLE `users` ENABLE KEYS */;
 UNLOCK TABLES;
 
+--
+-- Final view structure for view `admin_order_refund_requests`
+--
+
+/*!50001 DROP VIEW IF EXISTS `admin_order_refund_requests`*/;
+/*!50001 SET @saved_cs_client          = @@character_set_client */;
+/*!50001 SET @saved_cs_results         = @@character_set_results */;
+/*!50001 SET @saved_col_connection     = @@collation_connection */;
+/*!50001 SET character_set_client      = utf8mb4 */;
+/*!50001 SET character_set_results     = utf8mb4 */;
+/*!50001 SET collation_connection      = utf8mb4_0900_ai_ci */;
+/*!50001 CREATE ALGORITHM=UNDEFINED */
+/*!50013 DEFINER=`root`@`localhost` SQL SECURITY DEFINER */
+/*!50001 VIEW `admin_order_refund_requests` AS select `o`.`order_id` AS `order_id`,`o`.`user_id` AS `order_user_id`,`o`.`status` AS `order_status`,`rr`.`status` AS `refund_request_status`,`rr`.`reason` AS `reason`,`rr`.`created_at` AS `requested_at`,`rr`.`admin_id` AS `admin_id`,`rr`.`admin_note` AS `admin_note`,`rr`.`processed_at` AS `processed_at` from (`orders` `o` left join `refund_request` `rr` on((`rr`.`order_id` = `o`.`order_id`))) */;
+/*!50001 SET character_set_client      = @saved_cs_client */;
+/*!50001 SET character_set_results     = @saved_cs_results */;
+/*!50001 SET collation_connection      = @saved_col_connection */;
 /*!40103 SET TIME_ZONE=@OLD_TIME_ZONE */;
 
 /*!40101 SET SQL_MODE=@OLD_SQL_MODE */;
@@ -471,131 +583,4 @@ UNLOCK TABLES;
 /*!40101 SET COLLATION_CONNECTION=@OLD_COLLATION_CONNECTION */;
 /*!40111 SET SQL_NOTES=@OLD_SQL_NOTES */;
 
--- Dump completed on 2025-12-02 13:58:58
-DROP TABLE IF EXISTS paynow_invoice;
-
-ALTER TABLE payment
-  DROP COLUMN paynow_reference,
-  DROP COLUMN paynow_qr_url,
-  DROP COLUMN paynow_expires_at,
-  MODIFY method ENUM('CARD','COD') NOT NULL;
-
-ALTER TABLE payment_method
-  MODIFY method ENUM('CARD','COD') NOT NULL;
-ALTER TABLE product
-  ADD COLUMN is_slider TINYINT(1) NOT NULL DEFAULT 0;
-UPDATE product SET is_slider = 0;
-
--- MySQL dump 10.13  Distrib 8.0.42, for Win64 (x86_64)
---
--- Host: c372-005.mysql.database.azure.com    Database: c372-005_team3
--- ------------------------------------------------------
--- Server version	8.0.42-azure
-
-/*!40101 SET @OLD_CHARACTER_SET_CLIENT=@@CHARACTER_SET_CLIENT */;
-/*!40101 SET @OLD_CHARACTER_SET_RESULTS=@@CHARACTER_SET_RESULTS */;
-/*!40101 SET @OLD_COLLATION_CONNECTION=@@COLLATION_CONNECTION */;
-/*!50503 SET NAMES utf8 */;
-/*!40103 SET @OLD_TIME_ZONE=@@TIME_ZONE */;
-/*!40103 SET TIME_ZONE='+00:00' */;
-/*!40014 SET @OLD_UNIQUE_CHECKS=@@UNIQUE_CHECKS, UNIQUE_CHECKS=0 */;
-/*!40014 SET @OLD_FOREIGN_KEY_CHECKS=@@FOREIGN_KEY_CHECKS, FOREIGN_KEY_CHECKS=0 */;
-/*!40101 SET @OLD_SQL_MODE=@@SQL_MODE, SQL_MODE='NO_AUTO_VALUE_ON_ZERO' */;
-/*!40111 SET @OLD_SQL_NOTES=@@SQL_NOTES, SQL_NOTES=0 */;
-
---
--- Table structure for table `transactions`
---
-
-DROP TABLE IF EXISTS `transactions`;
-/*!40101 SET @saved_cs_client     = @@character_set_client */;
-/*!50503 SET character_set_client = utf8mb4 */;
-CREATE TABLE `transactions` (
-  `id` int NOT NULL AUTO_INCREMENT,
-  `orderId` varchar(100) NOT NULL,
-  `payerId` varchar(100) DEFAULT NULL,
-  `payerEmail` varchar(255) DEFAULT NULL,
-  `amount` decimal(10,2) DEFAULT NULL,
-  `currency` varchar(10) DEFAULT NULL,
-  `status` varchar(50) DEFAULT NULL,
-  `time` datetime DEFAULT NULL,
-  `created_at` timestamp NULL DEFAULT CURRENT_TIMESTAMP,
-  `captureId` varchar(255) DEFAULT NULL,
-  `refundReason` varchar(255) DEFAULT NULL,
-  PRIMARY KEY (`id`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
-/*!40101 SET character_set_client = @saved_cs_client */;
-
---
--- Dumping data for table `transactions`
---
-
-LOCK TABLES `transactions` WRITE;
-/*!40000 ALTER TABLE `transactions` DISABLE KEYS */;
-/*!40000 ALTER TABLE `transactions` ENABLE KEYS */;
-UNLOCK TABLES;
-/*!40103 SET TIME_ZONE=@OLD_TIME_ZONE */;
-
-/*!40101 SET SQL_MODE=@OLD_SQL_MODE */;
-/*!40014 SET FOREIGN_KEY_CHECKS=@OLD_FOREIGN_KEY_CHECKS */;
-/*!40014 SET UNIQUE_CHECKS=@OLD_UNIQUE_CHECKS */;
-/*!40101 SET CHARACTER_SET_CLIENT=@OLD_CHARACTER_SET_CLIENT */;
-/*!40101 SET CHARACTER_SET_RESULTS=@OLD_CHARACTER_SET_RESULTS */;
-/*!40101 SET COLLATION_CONNECTION=@OLD_COLLATION_CONNECTION */;
-/*!40111 SET SQL_NOTES=@OLD_SQL_NOTES */;
-
--- Dump completed on 2026-02-03  7:58:08
-
-ALTER TABLE transactions
-  ADD COLUMN captureId VARCHAR(255) DEFAULT NULL,
-  ADD COLUMN refundReason VARCHAR(255) DEFAULT NULL;
-
-ALTER TABLE orders ADD COLUMN payment_method VARCHAR(50) DEFAULT NULL;
-
--- Add captureId column if it doesn't exist
-ALTER TABLE transactions 
-ADD COLUMN captureId VARCHAR(255) DEFAULT NULL;
-
--- Add refundReason column if it doesn't exist
-ALTER TABLE transactions 
-ADD COLUMN refundReason VARCHAR(255) DEFAULT NULL;
-
--- Verify the changes
-DESCRIBE transactions;
-
--- Refund request flow: user submits request + reason, admin approves/rejects/refunds
-DROP TABLE IF EXISTS `refund_request`;
-CREATE TABLE `refund_request` (
-  `refund_request_id` bigint NOT NULL AUTO_INCREMENT,
-  `order_id` int NOT NULL,
-  `user_id` int NOT NULL,
-  `reason` varchar(500) NOT NULL,
-  `status` enum('requested','approved','rejected','cancelled') NOT NULL DEFAULT 'requested',
-  `admin_id` int DEFAULT NULL,
-  `admin_note` varchar(500) DEFAULT NULL,
-  `created_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  `processed_at` datetime DEFAULT NULL,
-  PRIMARY KEY (`refund_request_id`),
-  UNIQUE KEY `uq_refund_request_order` (`order_id`),
-  KEY `idx_refund_request_user` (`user_id`),
-  KEY `idx_refund_request_status` (`status`),
-  CONSTRAINT `fk_refund_request_order` FOREIGN KEY (`order_id`) REFERENCES `orders` (`order_id`) ON DELETE CASCADE ON UPDATE RESTRICT,
-  CONSTRAINT `fk_refund_request_user` FOREIGN KEY (`user_id`) REFERENCES `users` (`user_id`) ON DELETE RESTRICT ON UPDATE RESTRICT,
-  CONSTRAINT `fk_refund_request_admin` FOREIGN KEY (`admin_id`) REFERENCES `users` (`user_id`) ON DELETE SET NULL ON UPDATE RESTRICT
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
-
--- Admin view: show each order with refund reason (if requested)
-CREATE OR REPLACE VIEW `admin_order_refund_requests` AS
-SELECT
-  o.`order_id`,
-  o.`user_id` AS `order_user_id`,
-  o.`status` AS `order_status`,
-  rr.`status` AS `refund_request_status`,
-  rr.`reason`,
-  rr.`created_at` AS `requested_at`,
-  rr.`admin_id`,
-  rr.`admin_note`,
-  rr.`processed_at`
-FROM `orders` o
-LEFT JOIN `refund_request` rr
-  ON rr.`order_id` = o.`order_id`;
+-- Dump completed on 2026-02-03 10:26:24
