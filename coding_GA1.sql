@@ -116,32 +116,6 @@ LOCK TABLES `order_item` WRITE;
 UNLOCK TABLES;
 
 --
--- Table structure for table `order_membership`
---
-
-DROP TABLE IF EXISTS `order_membership`;
-/*!40101 SET @saved_cs_client     = @@character_set_client */;
-/*!50503 SET character_set_client = utf8mb4 */;
-CREATE TABLE `order_membership` (
-  `order_id` int NOT NULL,
-  `plan_id` int NOT NULL,
-  PRIMARY KEY (`order_id`,`plan_id`),
-  KEY `plan_id` (`plan_id`),
-  CONSTRAINT `order_membership_ibfk_1` FOREIGN KEY (`order_id`) REFERENCES `orders` (`order_id`) ON DELETE CASCADE,
-  CONSTRAINT `order_membership_ibfk_2` FOREIGN KEY (`plan_id`) REFERENCES `membership_plan` (`plan_id`) ON DELETE RESTRICT
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
-/*!40101 SET character_set_client = @saved_cs_client */;
-
---
--- Dumping data for table `order_membership`
---
-
-LOCK TABLES `order_membership` WRITE;
-/*!40000 ALTER TABLE `order_membership` DISABLE KEYS */;
-/*!40000 ALTER TABLE `order_membership` ENABLE KEYS */;
-UNLOCK TABLES;
-
---
 -- Table structure for table `orders`
 --
 
@@ -226,37 +200,6 @@ CREATE TABLE `payment` (
 LOCK TABLES `payment` WRITE;
 /*!40000 ALTER TABLE `payment` DISABLE KEYS */;
 /*!40000 ALTER TABLE `payment` ENABLE KEYS */;
-UNLOCK TABLES;
-
---
--- Table structure for table `payment_event`
---
-
-DROP TABLE IF EXISTS `payment_event`;
-/*!40101 SET @saved_cs_client     = @@character_set_client */;
-/*!50503 SET character_set_client = utf8mb4 */;
-CREATE TABLE `payment_event` (
-  `event_id` bigint NOT NULL AUTO_INCREMENT,
-  `provider` varchar(50) NOT NULL,
-  `provider_event_id` varchar(128) NOT NULL,
-  `event_type` varchar(100) NOT NULL,
-  `related_payment_id` bigint DEFAULT NULL,
-  `payload` json DEFAULT NULL,
-  `received_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  PRIMARY KEY (`event_id`),
-  UNIQUE KEY `uq_provider_event` (`provider`,`provider_event_id`),
-  KEY `related_payment_id` (`related_payment_id`),
-  CONSTRAINT `payment_event_ibfk_1` FOREIGN KEY (`related_payment_id`) REFERENCES `payment` (`payment_id`) ON DELETE SET NULL
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
-/*!40101 SET character_set_client = @saved_cs_client */;
-
---
--- Dumping data for table `payment_event`
---
-
-LOCK TABLES `payment_event` WRITE;
-/*!40000 ALTER TABLE `payment_event` DISABLE KEYS */;
-/*!40000 ALTER TABLE `payment_event` ENABLE KEYS */;
 UNLOCK TABLES;
 
 --
@@ -518,109 +461,6 @@ INSERT INTO `users` VALUES (1,'admin','active','nelson','woodland','123321@gmail
 /*!40000 ALTER TABLE `users` ENABLE KEYS */;
 UNLOCK TABLES;
 
---
--- Temporary view structure for view `v_active_members`
---
-
-DROP TABLE IF EXISTS `v_active_members`;
-/*!50001 DROP VIEW IF EXISTS `v_active_members`*/;
-SET @saved_cs_client     = @@character_set_client;
-/*!50503 SET character_set_client = utf8mb4 */;
-/*!50001 CREATE VIEW `v_active_members` AS SELECT 
- 1 AS `user_id`,
- 1 AS `name`,
- 1 AS `contact_number`,
- 1 AS `plan_id`,
- 1 AS `member_since`,
- 1 AS `member_expires`*/;
-SET character_set_client = @saved_cs_client;
-
---
--- Temporary view structure for view `v_active_membership_plans`
---
-
-DROP TABLE IF EXISTS `v_active_membership_plans`;
-/*!50001 DROP VIEW IF EXISTS `v_active_membership_plans`*/;
-SET @saved_cs_client     = @@character_set_client;
-/*!50503 SET character_set_client = utf8mb4 */;
-/*!50001 CREATE VIEW `v_active_membership_plans` AS SELECT 
- 1 AS `plan_id`,
- 1 AS `name`,
- 1 AS `discount_type`,
- 1 AS `discount_value`,
- 1 AS `min_spent`,
- 1 AS `duration_days`*/;
-SET character_set_client = @saved_cs_client;
-
---
--- Temporary view structure for view `v_sales_by_date`
---
-
-DROP TABLE IF EXISTS `v_sales_by_date`;
-/*!50001 DROP VIEW IF EXISTS `v_sales_by_date`*/;
-SET @saved_cs_client     = @@character_set_client;
-/*!50503 SET character_set_client = utf8mb4 */;
-/*!50001 CREATE VIEW `v_sales_by_date` AS SELECT 
- 1 AS `order_date`,
- 1 AS `orders_count`,
- 1 AS `subtotal_sum`,
- 1 AS `discount_sum`,
- 1 AS `total_sum`*/;
-SET character_set_client = @saved_cs_client;
-
---
--- Final view structure for view `v_active_members`
---
-
-/*!50001 DROP VIEW IF EXISTS `v_active_members`*/;
-/*!50001 SET @saved_cs_client          = @@character_set_client */;
-/*!50001 SET @saved_cs_results         = @@character_set_results */;
-/*!50001 SET @saved_col_connection     = @@collation_connection */;
-/*!50001 SET character_set_client      = utf8mb4 */;
-/*!50001 SET character_set_results     = utf8mb4 */;
-/*!50001 SET collation_connection      = utf8mb4_0900_ai_ci */;
-/*!50001 CREATE ALGORITHM=UNDEFINED */
-/*!50013 DEFINER=`root`@`localhost` SQL SECURITY DEFINER */
-/*!50001 VIEW `v_active_members` AS select `u`.`user_id` AS `user_id`,`u`.`name` AS `name`,`u`.`contact_number` AS `contact_number`,`u`.`plan_id` AS `plan_id`,`u`.`member_since` AS `member_since`,`u`.`member_expires` AS `member_expires` from `users` `u` where ((`u`.`is_member` = 1) and (`u`.`member_expires` is not null) and (`u`.`member_expires` >= curdate())) */;
-/*!50001 SET character_set_client      = @saved_cs_client */;
-/*!50001 SET character_set_results     = @saved_cs_results */;
-/*!50001 SET collation_connection      = @saved_col_connection */;
-
---
--- Final view structure for view `v_active_membership_plans`
---
-
-/*!50001 DROP VIEW IF EXISTS `v_active_membership_plans`*/;
-/*!50001 SET @saved_cs_client          = @@character_set_client */;
-/*!50001 SET @saved_cs_results         = @@character_set_results */;
-/*!50001 SET @saved_col_connection     = @@collation_connection */;
-/*!50001 SET character_set_client      = utf8mb4 */;
-/*!50001 SET character_set_results     = utf8mb4 */;
-/*!50001 SET collation_connection      = utf8mb4_0900_ai_ci */;
-/*!50001 CREATE ALGORITHM=UNDEFINED */
-/*!50013 DEFINER=`root`@`localhost` SQL SECURITY DEFINER */
-/*!50001 VIEW `v_active_membership_plans` AS select `membership_plan`.`plan_id` AS `plan_id`,`membership_plan`.`name` AS `name`,`membership_plan`.`discount_type` AS `discount_type`,`membership_plan`.`discount_value` AS `discount_value`,`membership_plan`.`min_spent` AS `min_spent`,`membership_plan`.`duration_days` AS `duration_days` from `membership_plan` where (`membership_plan`.`active` = 1) */;
-/*!50001 SET character_set_client      = @saved_cs_client */;
-/*!50001 SET character_set_results     = @saved_cs_results */;
-/*!50001 SET collation_connection      = @saved_col_connection */;
-
---
--- Final view structure for view `v_sales_by_date`
---
-
-/*!50001 DROP VIEW IF EXISTS `v_sales_by_date`*/;
-/*!50001 SET @saved_cs_client          = @@character_set_client */;
-/*!50001 SET @saved_cs_results         = @@character_set_results */;
-/*!50001 SET @saved_col_connection     = @@collation_connection */;
-/*!50001 SET character_set_client      = utf8mb4 */;
-/*!50001 SET character_set_results     = utf8mb4 */;
-/*!50001 SET collation_connection      = utf8mb4_0900_ai_ci */;
-/*!50001 CREATE ALGORITHM=UNDEFINED */
-/*!50013 DEFINER=`root`@`localhost` SQL SECURITY DEFINER */
-/*!50001 VIEW `v_sales_by_date` AS select cast(`o`.`created_at` as date) AS `order_date`,count(0) AS `orders_count`,sum(`o`.`subtotal_amount`) AS `subtotal_sum`,sum(`o`.`discount_amount`) AS `discount_sum`,sum(`o`.`total_amount`) AS `total_sum` from `orders` `o` group by cast(`o`.`created_at` as date) */;
-/*!50001 SET character_set_client      = @saved_cs_client */;
-/*!50001 SET character_set_results     = @saved_cs_results */;
-/*!50001 SET collation_connection      = @saved_col_connection */;
 /*!40103 SET TIME_ZONE=@OLD_TIME_ZONE */;
 
 /*!40101 SET SQL_MODE=@OLD_SQL_MODE */;
@@ -646,9 +486,79 @@ ALTER TABLE product
   ADD COLUMN is_slider TINYINT(1) NOT NULL DEFAULT 0;
 UPDATE product SET is_slider = 0;
 
+-- MySQL dump 10.13  Distrib 8.0.42, for Win64 (x86_64)
+--
+-- Host: c372-005.mysql.database.azure.com    Database: c372-005_team3
+-- ------------------------------------------------------
+-- Server version	8.0.42-azure
+
+/*!40101 SET @OLD_CHARACTER_SET_CLIENT=@@CHARACTER_SET_CLIENT */;
+/*!40101 SET @OLD_CHARACTER_SET_RESULTS=@@CHARACTER_SET_RESULTS */;
+/*!40101 SET @OLD_COLLATION_CONNECTION=@@COLLATION_CONNECTION */;
+/*!50503 SET NAMES utf8 */;
+/*!40103 SET @OLD_TIME_ZONE=@@TIME_ZONE */;
+/*!40103 SET TIME_ZONE='+00:00' */;
+/*!40014 SET @OLD_UNIQUE_CHECKS=@@UNIQUE_CHECKS, UNIQUE_CHECKS=0 */;
+/*!40014 SET @OLD_FOREIGN_KEY_CHECKS=@@FOREIGN_KEY_CHECKS, FOREIGN_KEY_CHECKS=0 */;
+/*!40101 SET @OLD_SQL_MODE=@@SQL_MODE, SQL_MODE='NO_AUTO_VALUE_ON_ZERO' */;
+/*!40111 SET @OLD_SQL_NOTES=@@SQL_NOTES, SQL_NOTES=0 */;
+
+--
+-- Table structure for table `transactions`
+--
+
+DROP TABLE IF EXISTS `transactions`;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!50503 SET character_set_client = utf8mb4 */;
+CREATE TABLE `transactions` (
+  `id` int NOT NULL AUTO_INCREMENT,
+  `orderId` varchar(100) NOT NULL,
+  `payerId` varchar(100) DEFAULT NULL,
+  `payerEmail` varchar(255) DEFAULT NULL,
+  `amount` decimal(10,2) DEFAULT NULL,
+  `currency` varchar(10) DEFAULT NULL,
+  `status` varchar(50) DEFAULT NULL,
+  `time` datetime DEFAULT NULL,
+  `created_at` timestamp NULL DEFAULT CURRENT_TIMESTAMP,
+  `captureId` varchar(255) DEFAULT NULL,
+  `refundReason` varchar(255) DEFAULT NULL,
+  PRIMARY KEY (`id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+/*!40101 SET character_set_client = @saved_cs_client */;
+
+--
+-- Dumping data for table `transactions`
+--
+
+LOCK TABLES `transactions` WRITE;
+/*!40000 ALTER TABLE `transactions` DISABLE KEYS */;
+/*!40000 ALTER TABLE `transactions` ENABLE KEYS */;
+UNLOCK TABLES;
+/*!40103 SET TIME_ZONE=@OLD_TIME_ZONE */;
+
+/*!40101 SET SQL_MODE=@OLD_SQL_MODE */;
+/*!40014 SET FOREIGN_KEY_CHECKS=@OLD_FOREIGN_KEY_CHECKS */;
+/*!40014 SET UNIQUE_CHECKS=@OLD_UNIQUE_CHECKS */;
+/*!40101 SET CHARACTER_SET_CLIENT=@OLD_CHARACTER_SET_CLIENT */;
+/*!40101 SET CHARACTER_SET_RESULTS=@OLD_CHARACTER_SET_RESULTS */;
+/*!40101 SET COLLATION_CONNECTION=@OLD_COLLATION_CONNECTION */;
+/*!40111 SET SQL_NOTES=@OLD_SQL_NOTES */;
+
+-- Dump completed on 2026-02-03  7:58:08
 
 ALTER TABLE transactions
   ADD COLUMN captureId VARCHAR(255) DEFAULT NULL,
   ADD COLUMN refundReason VARCHAR(255) DEFAULT NULL;
 
 ALTER TABLE orders ADD COLUMN payment_method VARCHAR(50) DEFAULT NULL;
+
+-- Add captureId column if it doesn't exist
+ALTER TABLE transactions 
+ADD COLUMN captureId VARCHAR(255) DEFAULT NULL;
+
+-- Add refundReason column if it doesn't exist
+ALTER TABLE transactions 
+ADD COLUMN refundReason VARCHAR(255) DEFAULT NULL;
+
+-- Verify the changes
+DESCRIBE transactions;
