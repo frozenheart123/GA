@@ -119,7 +119,7 @@
             <thead><tr><th>ID</th><th>User</th><th>Total</th><th>Status</th><th>Created</th></tr></thead>
             <tbody>
             <% latestOrders.forEach(o => { %>
-              <tr><td><%= o.order_id %></td><td>#<%= o.user_id %></td><td>$<%= Number(o.total_amount).toFixed(2) %></td><td><%= o.status %></td><td><%= o.created_at.toISOString ? o.created_at.toISOString().slice(0,19).replace('T',' ') : o.created_at %></td></tr>
+              <tr><td><%= o.order_id %></td><td><%= o.user_name %></td><td>$<%= Number(o.total_amount).toFixed(2) %></td><td><%= o.status %></td><td><%= o.created_at.toISOString ? o.created_at.toISOString().slice(0,19).replace('T',' ') : o.created_at %></td></tr>
             <% }) %>
             </tbody>
           </table>

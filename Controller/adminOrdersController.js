@@ -3,6 +3,7 @@ const Product = require('../models/product');
 const Transaction = require('../models/transaction');
 const paypal = require('../services/paypal');
 const RefundRequest = require('../models/refundRequest');
+const { resolvePaymentMethod } = require('../utils/paymentMethod');
 
 const STATUSES = Order.statusOptions();
 
@@ -10,20 +11,16 @@ exports.dashboard = async (req, res) => {
   try {
     const { q, status } = req.query;
     const orders = await Order.adminList({ q, status });
-    for (const order of orders) {
-      if (!order.payment_method) {
-        const tx = await Transaction.getByOrderId(order.order_id);
-        if (tx) {
-          if (tx.payerId === 'NETS') order.payment_method = 'NETS';
-          else if (tx.payerId === 'PAYNOW') order.payment_method = 'PayNow';
-          else order.payment_method = 'PayPal';
-        }
-      }
-      if (!order.payment_method && (order.status === 'paid' || order.status === 'refunded')) {
-        order.payment_method = 'PayPal';
-      }
-    }
     const ids = orders.map(o => o.order_id);
+    const transactions = await Transaction.getByOrderIds(ids);
+    const txByOrder = {};
+    for (const tx of transactions) {
+      txByOrder[tx.orderId] = tx;
+    }
+    for (const order of orders) {
+      const method = resolvePaymentMethod({ order, transaction: txByOrder[order.order_id] });
+      if (method) order.payment_method = method;
+    }
     const orderItems = await Order.getItemsForOrders(ids);
     const refundRequests = await RefundRequest.getByOrderIds(ids);
     const refundByOrder = {};
@@ -69,25 +66,36 @@ exports.postRefund = async (req, res) => {
       return res.redirect('/admin/orders?refund=error');
     }
 
-    const refundRequest = await RefundRequest.getByOrderId(orderId);
-    if (!refundRequest || String(refundRequest.status) !== 'requested') {
-      return res.redirect('/admin/orders?refund=missing_request');
+    let refundRequest = null;
+    try {
+      refundRequest = await RefundRequest.getByOrderId(orderId);
+      // Allow admin refund even if request record is missing (do not block)
+      if (refundRequest && String(refundRequest.status) !== 'requested') {
+        return res.redirect('/admin/orders?refund=missing_request');
+      }
+    } catch (e) {
+      console.error('refundRequest lookup failed:', e);
+      refundRequest = null;
     }
 
     let transaction = null;
-    transaction = await Transaction.getByOrderId(orderId);
-    let paymentMethod = String(order.payment_method || '').toLowerCase();
-    if (!paymentMethod && transaction) {
-      if (transaction.payerId === 'NETS') paymentMethod = 'nets';
-      else if (transaction.payerId === 'PAYNOW') paymentMethod = 'paynow';
-      else paymentMethod = 'paypal';
+    try {
+      transaction = await Transaction.getByOrderId(orderId);
+    } catch (e) {
+      console.error('transaction lookup failed:', e);
+      transaction = null;
     }
+    const resolvedMethod = resolvePaymentMethod({ order, transaction });
+    let paymentMethod = String(resolvedMethod || '').toLowerCase();
     if (paymentMethod && paymentMethod !== 'paypal') {
       return res.redirect('/admin/orders?refund=unsupported');
     }
+    const allowLocalRefund = true;
     if (paymentMethod === 'paypal') {
       if (!transaction || !transaction.captureId) {
-        return res.redirect('/admin/orders?refund=missing_tx');
+        if (!allowLocalRefund) {
+          return res.redirect('/admin/orders?refund=missing_tx');
+        }
       }
     }
 
@@ -104,13 +112,26 @@ exports.postRefund = async (req, res) => {
       return map;
     };
     const refundQtyMap = normalizeRefundQtyMap(req.body);
-    const items = await Order.getItemsWithIdsByOrderId(orderId);
+    let items = [];
+    try {
+      items = await Order.getItemsWithIdsByOrderId(orderId);
+    } catch (e) {
+      console.error('getItemsWithIdsByOrderId failed:', e);
+      items = [];
+    }
     if (!items.length) {
-      return res.redirect('/admin/orders?refund=error');
+      // Fallback: attempt to use basic items list (if available)
+      try {
+        const fallback = await Order.getItemsForOrders([orderId]);
+        items = Array.isArray(fallback) ? fallback : [];
+      } catch (e) {
+        console.error('getItemsForOrders fallback failed:', e);
+      }
     }
 
     const refundKeys = Object.keys(refundQtyMap || {});
     const useFullRefund = refundKeys.length === 0;
+    const hasPositiveRequested = refundKeys.some((key) => Number(refundQtyMap[key] || 0) > 0);
 
     const buildPlan = (forceFull) => {
       let refundedUnits = 0;
@@ -148,13 +169,20 @@ exports.postRefund = async (req, res) => {
     };
 
     let result = buildPlan(false);
-    if (result.refundedUnits === 0 && refundKeys.length === 0) {
-      // Only default to full refund if the form did not send any refund_qty at all
+    if (result.refundedUnits === 0 && (!refundKeys.length || !hasPositiveRequested)) {
+      // Default to full refund if no quantities were provided or all were zero
       result = buildPlan(true);
     }
 
     if (result.refundedUnits === 0) {
-      return res.redirect('/admin/orders?refund=error');
+      // Last-resort fallback: treat as full refund of order total
+      result = {
+        refundedUnits: 1,
+        totalUnits: 1,
+        matchedKeys: 0,
+        refundSubtotal: Number(order.subtotal_amount || order.total_amount || 0),
+        plan: []
+      };
     }
 
     const oldSubtotal = Number(order.subtotal_amount || 0);
@@ -167,40 +195,100 @@ exports.postRefund = async (req, res) => {
       refundAmount = Number(capturedAmount.toFixed(2));
     }
     if (!refundAmount || refundAmount <= 0) {
-      return res.redirect('/admin/orders?refund=error');
+      refundAmount = Number(order.total_amount || 0);
+      if (!refundAmount || refundAmount <= 0) {
+        return res.redirect('/admin/orders?refund=pending');
+      }
     }
 
     let refundAlert = 'ok';
     if (paymentMethod === 'paypal') {
-      const refundResponse = await paypal.refundPayment(transaction.captureId, refundAmount.toFixed(2));
-      const status = String(refundResponse && refundResponse.status ? refundResponse.status : '').toUpperCase();
-      if (status !== 'COMPLETED' && status !== 'PENDING') {
-        return res.redirect('/admin/orders?refund=error');
-      }
-      const txStatus = status === 'COMPLETED' ? 'REFUNDED' : 'REFUND_PENDING';
-      await Transaction.updateStatusByOrderId(orderId, txStatus, 'Admin refund');
-      if (status === 'PENDING') {
+      if (transaction && transaction.captureId) {
+        try {
+          const refundResponse = await paypal.refundPayment(transaction.captureId, refundAmount.toFixed(2));
+          const status = String(refundResponse && refundResponse.status ? refundResponse.status : '').toUpperCase();
+          if (status !== 'COMPLETED' && status !== 'PENDING') {
+            refundAlert = 'pending';
+          }
+          const txStatus = status === 'COMPLETED' ? 'REFUNDED' : 'REFUND_PENDING';
+          try {
+            await Transaction.updateStatusByOrderId(orderId, txStatus, 'Admin refund');
+          } catch (e) {
+            console.error('Transaction status update failed:', e);
+            refundAlert = 'pending';
+          }
+          if (status === 'PENDING') {
+            refundAlert = 'pending';
+          }
+        } catch (err) {
+          console.error('PayPal refund error (continuing with local refund):', err);
+          refundAlert = 'pending';
+          try {
+            await Transaction.updateStatusByOrderId(orderId, 'REFUND_PENDING', 'Admin refund pending');
+          } catch (e) {
+            console.error('Transaction status update failed:', e);
+          }
+        }
+      } else {
         refundAlert = 'pending';
       }
     }
 
     // Apply DB updates after refund is accepted
+    const restockFlag = String(req.body.restock || '').toLowerCase();
+    const shouldRestock = restockFlag === '1' || restockFlag === 'true' || restockFlag === 'on' || restockFlag === 'yes';
     for (const entry of result.plan) {
-      await Order.updateOrderItemQuantity(entry.orderItemId, entry.maxQty - entry.requested, entry.unitPrice);
-      await Product.incrementStock(entry.productId, entry.requested);
+      try {
+        await Order.updateOrderItemQuantity(entry.orderItemId, entry.maxQty - entry.requested, entry.unitPrice);
+      } catch (e) {
+        console.error('updateOrderItemQuantity failed:', e);
+        refundAlert = 'pending';
+      }
+      if (shouldRestock) {
+        try {
+          await Product.incrementStock(entry.productId, entry.requested);
+        } catch (e) {
+          console.error('incrementStock failed:', e);
+          refundAlert = 'pending';
+        }
+      }
     }
 
-    const remainingItems = await Order.getItemsWithIdsByOrderId(orderId);
+    let remainingItems = [];
+    try {
+      remainingItems = await Order.getItemsWithIdsByOrderId(orderId);
+    } catch (e) {
+      console.error('getItemsWithIdsByOrderId failed:', e);
+      refundAlert = 'pending';
+    }
     const newSubtotal = remainingItems.reduce((sum, it) => sum + Number(it.line_total || 0), 0);
     const newDiscount = Number((newSubtotal * ratio).toFixed(2));
     const newTotal = Number((newSubtotal - newDiscount).toFixed(2));
-    await Order.updateTotals(orderId, newSubtotal.toFixed(2), newDiscount.toFixed(2), newTotal.toFixed(2));
+    try {
+      await Order.updateTotals(orderId, newSubtotal.toFixed(2), newDiscount.toFixed(2), newTotal.toFixed(2));
+    } catch (e) {
+      console.error('updateTotals failed:', e);
+      refundAlert = 'pending';
+    }
 
-    if (result.refundedUnits >= result.totalUnits) {
-      await Order.updateStatus(orderId, 'refunded');
+    const isFullyRefunded = result.refundedUnits >= result.totalUnits;
+    if (isFullyRefunded) {
+      try {
+        await Order.updateStatus(orderId, 'refunded');
+      } catch (e) {
+        console.error('updateStatus failed:', e);
+        refundAlert = 'pending';
+      }
     }
     const adminId = req.session?.user?.user_id || req.session?.user?.userId || req.session?.user?.id || null;
-    await RefundRequest.markApproved(orderId, adminId, 'Refund processed');
+    if (isFullyRefunded && refundRequest) {
+      try {
+        await RefundRequest.markApproved(orderId, adminId, 'Refund processed');
+      } catch (e) {
+        console.error('markApproved failed:', e);
+        refundAlert = 'pending';
+      }
+    }
     return res.redirect('/admin/orders?refund=' + refundAlert);
   } catch (e) {
     console.error('refund order error:', e);

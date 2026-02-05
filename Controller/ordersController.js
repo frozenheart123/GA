@@ -1,5 +1,6 @@
 const Order = require('../models/order');
 const Transaction = require('../models/transaction');
+const { resolvePaymentMethod } = require('../utils/paymentMethod');
 
 exports.getMyOrders = async (req, res) => {
   try {
@@ -13,6 +14,15 @@ exports.getMyOrders = async (req, res) => {
       return res.render('orders', { orders: [], itemsByOrder: {} });
     }
     const ids = orders.map(o => o.order_id);
+    const transactions = await Transaction.getByOrderIds(ids);
+    const txByOrder = {};
+    for (const tx of transactions) {
+      txByOrder[tx.orderId] = tx;
+    }
+    for (const order of orders) {
+      const method = resolvePaymentMethod({ order, transaction: txByOrder[order.order_id] });
+      if (method) order.payment_method = method;
+    }
     const items = await Order.getItemsForOrders(ids);
     const itemsByOrder = {};
     for (const it of items) {
@@ -45,17 +55,9 @@ exports.getOrderReceipt = async (req, res) => {
       return res.status(404).send('Order not found');
     }
 
-    if (!order.payment_method) {
-      const tx = await Transaction.getByOrderId(orderId);
-      if (tx) {
-        if (tx.payerId === 'NETS') order.payment_method = 'NETS';
-        else if (tx.payerId === 'PAYNOW') order.payment_method = 'PayNow';
-        else order.payment_method = 'PayPal';
-      }
-    }
-    if (!order.payment_method && (order.status === 'paid' || order.status === 'refunded')) {
-      order.payment_method = 'PayPal';
-    }
+    const tx = await Transaction.getByOrderId(orderId);
+    const method = resolvePaymentMethod({ order, transaction: tx });
+    if (method) order.payment_method = method;
 
     // Get order items
     const items = await Order.getItemsForOrders([orderId]);

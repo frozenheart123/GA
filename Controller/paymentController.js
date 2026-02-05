@@ -7,6 +7,7 @@ const OrderDetails = require('../models/order');
 const productModel = require('../models/product');
 const paypal = require('../services/paypal');
 const RefundRequest = require('../models/refundRequest');
+const { resolvePaymentMethod } = require('../utils/paymentMethod');
 
 exports.generateCheckout = async (req, res, next) => {
   try {
@@ -338,7 +339,7 @@ exports.pay = async (req, res) => {
         // Detect payment method
         let paymentMethod = 'PayPal';
         if (req.body.netsTxnId) {
-          paymentMethod = 'Nets';
+          paymentMethod = 'NETS';
         } else if (req.body.paynowTxnId) {
           paymentMethod = 'PayNow';
         }
@@ -438,30 +439,23 @@ exports.getOrders = async (req, res) => {
       });
     });
 
+    const ids = orders.map(o => o.id || o.orderId || o.order_id).filter(Boolean);
+    const transactions = await Transaction.getByOrderIds(ids);
+    const txByOrder = {};
+    for (const tx of transactions) {
+      txByOrder[tx.orderId] = tx;
+    }
     // Attach paymentInfo for each order
     for (const order of orders) {
-      const transactions = await Transaction.getByOrderId(order.id || order.orderId);
-      const transaction = Array.isArray(transactions) ? transactions[0] : transactions;
-      let paymentInfo = { method: 'Unknown', reference: '' };
-      if (transaction) {
-        if (transaction.payerId === 'NETS') {
-          paymentInfo.method = 'NETS QR';
-          paymentInfo.reference = transaction.captureId || transaction.payerId;
-        } else if (transaction.payerId === 'PAYNOW') {
-          paymentInfo.method = 'PayNow';
-          paymentInfo.reference = transaction.captureId || transaction.payerId;
-        } else if (transaction.payerEmail && transaction.captureId) {
-          paymentInfo.method = 'PayPal';
-          paymentInfo.reference = transaction.captureId;
-        } else if (transaction.payerEmail) {
-          paymentInfo.method = 'PayPal';
-          paymentInfo.reference = transaction.payerEmail;
-        } else if (transaction.payerId) {
-          paymentInfo.method = 'PayPal';
-          paymentInfo.reference = transaction.payerId;
-        }
+      const tx = txByOrder[order.id || order.orderId || order.order_id];
+      const method = resolvePaymentMethod({ order, transaction: tx }) || 'Unknown';
+      let reference = '';
+      if (tx) {
+        if (tx.captureId) reference = tx.captureId;
+        else if (tx.payerEmail) reference = tx.payerEmail;
+        else if (tx.payerId) reference = tx.payerId;
       }
-      order.paymentInfo = paymentInfo;
+      order.paymentInfo = { method, reference };
     }
 
     res.json({ success: true, orders });

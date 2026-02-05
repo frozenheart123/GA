@@ -134,6 +134,9 @@
             txnRef: "<%= txnRetrievalRef %>"
         };
 
+        let lastQueryResponse = null;
+        let isFinalizing = false;
+
         s2sNetsTxnStatus = new EventSourcePolyfill(url, {
             headers: headers,
             heartbeatTimeout: 150000,
@@ -143,9 +146,38 @@
             const data = JSON.parse(event.data);
             console.log("NETS Query Response:", data);
 
+            // Keep the most recent full NETS query payload
+            if (data && data.result && data.result.data) {
+                lastQueryResponse = data;
+            }
+
             if (data.success) {
                 if (s2sNetsTxnStatus) s2sNetsTxnStatus.close();
-                window.location.href = "/nets-qr/success?txn_retrieval_ref=" + txnRetrievalRef;
+                if (isFinalizing) return;
+                isFinalizing = true;
+                fetch('/nets-qr/complete', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        txnRetrievalRef: txnRetrievalRef,
+                        payload: lastQueryResponse,
+                        netTransactionId: lastQueryResponse?.result?.data?.net_transaction_id,
+                        courseInitId: lastQueryResponse?.result?.data?.course_init_id
+                    })
+                })
+                .then(function(res){ return res.json(); })
+                .then(function(resp){
+                    if (resp && resp.success) {
+                        window.location.href = "/nets-qr/success?txn_retrieval_ref=" + txnRetrievalRef;
+                    } else {
+                        console.error('NETS finalize failed:', resp);
+                        window.location.href = "/nets-qr/fail?txn_retrieval_ref=" + txnRetrievalRef;
+                    }
+                })
+                .catch(function(err){
+                    console.error('NETS finalize error:', err);
+                    window.location.href = "/nets-qr/fail?txn_retrieval_ref=" + txnRetrievalRef;
+                });
             } else if (data.fail) {
                 if (s2sNetsTxnStatus) s2sNetsTxnStatus.close();
                 window.location.href = "/nets-qr/fail?txn_retrieval_ref=" + txnRetrievalRef;

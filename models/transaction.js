@@ -61,6 +61,21 @@ const Transaction = {
     });
   },
 
+  getByOrderIds: async (orderIds) => {
+    return new Promise((resolve, reject) => {
+      if (!orderIds || !orderIds.length) return resolve([]);
+      const placeholders = orderIds.map(() => '?').join(',');
+      db.query(`SELECT * FROM transactions WHERE orderId IN (${placeholders})`, orderIds, (err, results) => {
+        if (err && isMissingTableError(err)) {
+          console.warn('transactions table missing; returning empty list for getByOrderIds');
+          return resolve([]);
+        }
+        if (err) return reject(err);
+        resolve(results || []);
+      });
+    });
+  },
+
   updateStatusByOrderId: async (orderId, status, reason) => {
     return new Promise((resolve, reject) => {
       const params = [status, reason, orderId];

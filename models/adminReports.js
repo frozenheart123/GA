@@ -3,7 +3,7 @@ const db = require('../db');
 exports.summary = ({ from, to }) => {
   return new Promise((resolve) => {
     const out = { gross: 0, orders: 0, avg: 0 };
-    const sqlRange = 'WHERE created_at BETWEEN ? AND ?';
+    const sqlRange = "WHERE created_at BETWEEN ? AND ? AND status NOT IN ('cancelled','awaiting_payment')";
     const sql = `SELECT IFNULL(SUM(total_amount),0) AS gross, COUNT(*) AS c FROM orders ${sqlRange}`;
     console.log('adminReports.summary query:', sql, 'params:', [from, to]);
     db.query(sql, [from, to], (e, r) => {
@@ -20,7 +20,7 @@ exports.summary = ({ from, to }) => {
 exports.salesByDay = ({ from, to }) => {
   return new Promise((resolve) => {
     const sql = `SELECT DATE(created_at) as d, IFNULL(SUM(total_amount),0) AS sales, COUNT(*) AS orders
-                 FROM orders WHERE created_at BETWEEN ? AND ?
+                 FROM orders WHERE created_at BETWEEN ? AND ? AND status NOT IN ('cancelled','awaiting_payment')
                  GROUP BY DATE(created_at) ORDER BY DATE(created_at)`;
     db.query(sql, [from, to], (e, r) => resolve(r || []));
   });
@@ -49,14 +49,24 @@ exports.topProducts = ({ from, to }) => {
 
 exports.membershipSummary = ({ from, to }) => {
   return new Promise((resolve) => {
-    const out = { active: 0, expiring14: 0, byPlan: [] };
+    const out = { active: 0, expiring14: 0, byPlan: [], series: [] };
     db.query('SELECT COUNT(*) AS c FROM users WHERE is_member = 1', (e, r) => {
       out.active = r && r[0] ? r[0].c : 0;
       db.query('SELECT COUNT(*) AS c FROM users WHERE is_member = 1 AND member_expires BETWEEN CURDATE() AND DATE_ADD(CURDATE(), INTERVAL 14 DAY)', (e2, r2) => {
         out.expiring14 = r2 && r2[0] ? r2[0].c : 0;
         db.query('SELECT mp.name, COUNT(*) AS c FROM users u JOIN membership_plan mp ON mp.plan_id = u.plan_id GROUP BY mp.plan_id', (e3, r3) => {
           out.byPlan = r3 || [];
-          resolve(out);
+          const seriesSql = `
+            SELECT DATE(COALESCE(u.member_since, u.created_at)) AS d, COUNT(*) AS c
+            FROM users u
+            WHERE u.is_member = 1 AND COALESCE(u.member_since, u.created_at) BETWEEN ? AND ?
+            GROUP BY DATE(COALESCE(u.member_since, u.created_at))
+            ORDER BY DATE(COALESCE(u.member_since, u.created_at))
+          `;
+          db.query(seriesSql, [from, to], (e4, r4) => {
+            out.series = r4 || [];
+            resolve(out);
+          });
         });
       });
     });

@@ -224,6 +224,10 @@
     <form id="refundForm" method="post">
       <p style="margin:0 0 12px 0;color:#64748b">Choose refund quantities for each item.</p>
       <div id="refundItems" style="display:flex;flex-direction:column;gap:10px;margin-bottom:12px"></div>
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px">
+        <input type="checkbox" id="restockToggle" name="restock" value="1" checked />
+        <label for="restockToggle" style="font-weight:700">Restock refunded items</label>
+      </div>
       <div style="display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap;align-items:center">
         <button class="btn small" type="button" id="refundAllBtn">Refund All</button>
         <button class="btn ghost" type="button" id="refundCancel">Cancel</button>
@@ -240,10 +244,12 @@
     const form = document.getElementById('refundForm');
     const cancelBtn = document.getElementById('refundCancel');
     const refundAllBtn = document.getElementById('refundAllBtn');
+    const restockToggle = document.getElementById('restockToggle');
     if (!modal || !itemsBox || !form) return;
 
     function openModal(orderId, items){
       itemsBox.innerHTML = '';
+      if (restockToggle) restockToggle.checked = true;
       (items || []).forEach(function(item){
         const row = document.createElement('div');
         row.className = 'item-pill';
