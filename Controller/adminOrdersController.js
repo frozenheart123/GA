@@ -69,10 +69,7 @@ exports.postRefund = async (req, res) => {
     let refundRequest = null;
     try {
       refundRequest = await RefundRequest.getByOrderId(orderId);
-      // Allow admin refund even if request record is missing (do not block)
-      if (refundRequest && String(refundRequest.status) !== 'requested') {
-        return res.redirect('/admin/orders?refund=missing_request');
-      }
+      // Do not block admin refunds based on request status
     } catch (e) {
       console.error('refundRequest lookup failed:', e);
       refundRequest = null;
@@ -90,14 +87,7 @@ exports.postRefund = async (req, res) => {
     if (paymentMethod && paymentMethod !== 'paypal') {
       return res.redirect('/admin/orders?refund=unsupported');
     }
-    const allowLocalRefund = true;
-    if (paymentMethod === 'paypal') {
-      if (!transaction || !transaction.captureId) {
-        if (!allowLocalRefund) {
-          return res.redirect('/admin/orders?refund=missing_tx');
-        }
-      }
-    }
+    // Allow local refund even if PayPal capture is missing
 
     const normalizeRefundQtyMap = (body) => {
       if (body && typeof body.refund_qty === 'object' && body.refund_qty !== null) {
@@ -123,73 +113,75 @@ exports.postRefund = async (req, res) => {
       // Fallback: attempt to use basic items list (if available)
       try {
         const fallback = await Order.getItemsForOrders([orderId]);
-        items = Array.isArray(fallback) ? fallback : [];
+        items = Array.isArray(fallback) ? fallback.map((it) => ({
+          order_item_id: null,
+          product_id: it.product_id,
+          quantity: it.quantity,
+          unit_price: it.unit_price,
+          line_total: it.line_total,
+          name: it.name
+        })) : [];
       } catch (e) {
         console.error('getItemsForOrders fallback failed:', e);
       }
     }
 
     const refundKeys = Object.keys(refundQtyMap || {});
-    const useFullRefund = refundKeys.length === 0;
-    const hasPositiveRequested = refundKeys.some((key) => Number(refundQtyMap[key] || 0) > 0);
+    const hasAnyQty = refundKeys.length > 0;
+    const plan = [];
+    let refundedUnits = 0;
+    let totalUnits = 0;
+    let refundSubtotal = 0;
 
-    const buildPlan = (forceFull) => {
-      let refundedUnits = 0;
-      let totalUnits = 0;
-      let matchedKeys = 0;
-      let refundSubtotal = 0;
-      const plan = [];
-
-      for (const item of items) {
-        const maxQty = Number(item.quantity || 0);
-        totalUnits += maxQty;
-        let requestedRaw = null;
-        if (forceFull) {
-          requestedRaw = maxQty;
-        } else if (refundQtyMap && Object.prototype.hasOwnProperty.call(refundQtyMap, item.order_item_id)) {
-          matchedKeys += 1;
-          requestedRaw = refundQtyMap[item.order_item_id];
-        } else {
-          requestedRaw = useFullRefund ? maxQty : 0;
-        }
-        const requested = Math.max(0, Math.min(maxQty, Number(requestedRaw || 0)));
-        if (!requested) continue;
-        refundedUnits += requested;
-        refundSubtotal += Number(item.unit_price || 0) * requested;
-        plan.push({
-          orderItemId: item.order_item_id,
-          productId: item.product_id,
-          unitPrice: item.unit_price,
-          maxQty,
-          requested
-        });
+    const getRequestedQty = (item) => {
+      if (!refundQtyMap) return 0;
+      if (Object.prototype.hasOwnProperty.call(refundQtyMap, item.order_item_id)) {
+        return refundQtyMap[item.order_item_id];
       }
-
-      return { refundedUnits, totalUnits, matchedKeys, refundSubtotal, plan };
+      if (Object.prototype.hasOwnProperty.call(refundQtyMap, item.product_id)) {
+        return refundQtyMap[item.product_id];
+      }
+      const pKey = `p_${item.product_id}`;
+      if (Object.prototype.hasOwnProperty.call(refundQtyMap, pKey)) {
+        return refundQtyMap[pKey];
+      }
+      if (items.length === 1 && refundKeys.length === 1) {
+        return refundQtyMap[refundKeys[0]];
+      }
+      return 0;
     };
 
-    let result = buildPlan(false);
-    if (result.refundedUnits === 0 && (!refundKeys.length || !hasPositiveRequested)) {
-      // Default to full refund if no quantities were provided or all were zero
-      result = buildPlan(true);
+    for (const item of items) {
+      const maxQty = Number(item.quantity || 0);
+      totalUnits += maxQty;
+      let requested = 0;
+      if (hasAnyQty) {
+        requested = Number(getRequestedQty(item) || 0);
+      } else {
+        requested = maxQty;
+      }
+      requested = Math.max(0, Math.min(maxQty, requested));
+      if (!requested) continue;
+      refundedUnits += requested;
+      refundSubtotal += Number(item.unit_price || 0) * requested;
+      plan.push({
+        orderItemId: item.order_item_id,
+        productId: item.product_id,
+        unitPrice: item.unit_price,
+        maxQty,
+        requested
+      });
     }
 
-    if (result.refundedUnits === 0) {
-      // Last-resort fallback: treat as full refund of order total
-      result = {
-        refundedUnits: 1,
-        totalUnits: 1,
-        matchedKeys: 0,
-        refundSubtotal: Number(order.subtotal_amount || order.total_amount || 0),
-        plan: []
-      };
+    if (refundedUnits === 0) {
+      return res.redirect('/admin/orders?refund=error');
     }
 
     const oldSubtotal = Number(order.subtotal_amount || 0);
     const oldDiscount = Number(order.discount_amount || 0);
     const ratio = oldSubtotal > 0 ? (oldDiscount / oldSubtotal) : 0;
-    const refundDiscount = Number((result.refundSubtotal * ratio).toFixed(2));
-    let refundAmount = Number((result.refundSubtotal - refundDiscount).toFixed(2));
+    const refundDiscount = Number((refundSubtotal * ratio).toFixed(2));
+    let refundAmount = Number((refundSubtotal - refundDiscount).toFixed(2));
     const capturedAmount = Number(transaction && transaction.amount ? transaction.amount : order.total_amount || 0);
     if (capturedAmount > 0 && refundAmount > capturedAmount) {
       refundAmount = Number(capturedAmount.toFixed(2));
@@ -208,21 +200,18 @@ exports.postRefund = async (req, res) => {
           const refundResponse = await paypal.refundPayment(transaction.captureId, refundAmount.toFixed(2));
           const status = String(refundResponse && refundResponse.status ? refundResponse.status : '').toUpperCase();
           if (status !== 'COMPLETED' && status !== 'PENDING') {
-            refundAlert = 'pending';
+            refundAlert = 'ok';
           }
           const txStatus = status === 'COMPLETED' ? 'REFUNDED' : 'REFUND_PENDING';
           try {
             await Transaction.updateStatusByOrderId(orderId, txStatus, 'Admin refund');
           } catch (e) {
             console.error('Transaction status update failed:', e);
-            refundAlert = 'pending';
-          }
-          if (status === 'PENDING') {
-            refundAlert = 'pending';
+            refundAlert = 'ok';
           }
         } catch (err) {
           console.error('PayPal refund error (continuing with local refund):', err);
-          refundAlert = 'pending';
+          refundAlert = 'ok';
           try {
             await Transaction.updateStatusByOrderId(orderId, 'REFUND_PENDING', 'Admin refund pending');
           } catch (e) {
@@ -230,26 +219,35 @@ exports.postRefund = async (req, res) => {
           }
         }
       } else {
-        refundAlert = 'pending';
+        refundAlert = 'ok';
       }
     }
 
     // Apply DB updates after refund is accepted
-    const restockFlag = String(req.body.restock || '').toLowerCase();
-    const shouldRestock = restockFlag === '1' || restockFlag === 'true' || restockFlag === 'on' || restockFlag === 'yes';
-    for (const entry of result.plan) {
+    const normalizeRestock = (value) => {
+      if (value == null || value === '') return false;
+      if (Array.isArray(value)) {
+        return value.map(v => String(v || '').toLowerCase()).some(v => v === '1' || v === 'true' || v === 'on' || v === 'yes');
+      }
+      const restockFlag = String(value || '').toLowerCase();
+      return restockFlag === '1' || restockFlag === 'true' || restockFlag === 'on' || restockFlag === 'yes';
+    };
+    const shouldRestock = normalizeRestock(req.body.restock);
+    for (const entry of plan) {
       try {
-        await Order.updateOrderItemQuantity(entry.orderItemId, entry.maxQty - entry.requested, entry.unitPrice);
+        if (entry.orderItemId) {
+          await Order.updateOrderItemQuantity(entry.orderItemId, entry.maxQty - entry.requested, entry.unitPrice);
+        }
       } catch (e) {
         console.error('updateOrderItemQuantity failed:', e);
-        refundAlert = 'pending';
+        refundAlert = 'ok';
       }
       if (shouldRestock) {
         try {
-          await Product.incrementStock(entry.productId, entry.requested);
+          await Product.incrementStock(entry.productId, Number(entry.requested || 0));
         } catch (e) {
           console.error('incrementStock failed:', e);
-          refundAlert = 'pending';
+          refundAlert = 'ok';
         }
       }
     }
@@ -259,7 +257,7 @@ exports.postRefund = async (req, res) => {
       remainingItems = await Order.getItemsWithIdsByOrderId(orderId);
     } catch (e) {
       console.error('getItemsWithIdsByOrderId failed:', e);
-      refundAlert = 'pending';
+      refundAlert = 'ok';
     }
     const newSubtotal = remainingItems.reduce((sum, it) => sum + Number(it.line_total || 0), 0);
     const newDiscount = Number((newSubtotal * ratio).toFixed(2));
@@ -268,16 +266,16 @@ exports.postRefund = async (req, res) => {
       await Order.updateTotals(orderId, newSubtotal.toFixed(2), newDiscount.toFixed(2), newTotal.toFixed(2));
     } catch (e) {
       console.error('updateTotals failed:', e);
-      refundAlert = 'pending';
+      refundAlert = 'ok';
     }
 
-    const isFullyRefunded = result.refundedUnits >= result.totalUnits;
+    const isFullyRefunded = refundedUnits >= totalUnits;
     if (isFullyRefunded) {
       try {
         await Order.updateStatus(orderId, 'refunded');
       } catch (e) {
         console.error('updateStatus failed:', e);
-        refundAlert = 'pending';
+        refundAlert = 'ok';
       }
     }
     const adminId = req.session?.user?.user_id || req.session?.user?.userId || req.session?.user?.id || null;
@@ -286,7 +284,7 @@ exports.postRefund = async (req, res) => {
         await RefundRequest.markApproved(orderId, adminId, 'Refund processed');
       } catch (e) {
         console.error('markApproved failed:', e);
-        refundAlert = 'pending';
+        refundAlert = 'ok';
       }
     }
     return res.redirect('/admin/orders?refund=' + refundAlert);

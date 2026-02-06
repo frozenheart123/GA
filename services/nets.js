@@ -28,16 +28,9 @@ const removeCartBulk = (userId, productIds) => {
 
 const decrementProductStock = async (productId, quantity) => {
   try {
-    const product = await productModel.getById(productId);
-    if (!product) {
-      throw new Error(`Product ${productId} not found`);
-    }
-    const currentQty = Number(product.quantity || 0);
-    const newQty = Math.max(0, currentQty - Number(quantity || 0));
-    const updated = await productModel.update(productId, {
-      ...product,
-      quantity: newQty,
-    });
+    const qty = Math.max(0, Number(quantity || 0));
+    if (!qty) return { success: true, affectedRows: 0 };
+    const updated = await productModel.decrementStock(productId, qty);
     return { success: !!updated, affectedRows: updated ? 1 : 0 };
   } catch (err) {
     console.error(`Error decrementing stock for productId ${productId}:`, err);
@@ -211,12 +204,16 @@ exports.completeOrder = async (req, res) => {
         .json({ error: "Invalid cart total; cannot create order." });
     }
 
-    const orderItems = items.map((item) => ({
-      productId: item.productId,
-      quantity: item.quantity,
-      price: Number(item.price || 0),
-      total: Number(item.price || 0) * Number(item.quantity || 0),
-    }));
+    const orderItems = items.map((item) => {
+      const qty = Number(item.quantity || item.qty || 0);
+      const price = Number(item.price || 0);
+      return {
+        productId: item.productId || item.product_id,
+        quantity: qty,
+        price,
+        total: price * qty,
+      };
+    });
 
     const orderId = await Orders.createOrder(
       userId,

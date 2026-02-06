@@ -206,6 +206,16 @@ exports.incrementStock = (id, quantity) => {
   });
 };
 
+exports.decrementStock = (id, quantity) => {
+  return new Promise((resolve, reject) => {
+    const qty = Math.max(0, Number(quantity || 0));
+    db.query('UPDATE product SET quantity = GREATEST(quantity - ?, 0) WHERE product_id = ?', [qty, id], (err, result) => {
+      if (err) return reject(err);
+      resolve(result.affectedRows > 0);
+    });
+  });
+};
+
 exports.remove = (id) => {
   return new Promise((resolve, reject) => {
     db.query('DELETE FROM product WHERE product_id = ?', [id], (err, result) => {

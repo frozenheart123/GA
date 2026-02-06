@@ -203,21 +203,10 @@ function createTransaction(transaction) {
 // Helper function to decrement product stock
 async function decrementProductStock(productId, quantity) {
   try {
-    const product = await productModel.getById(productId);
-    if (!product) {
-      throw new Error(`Product ${productId} not found`);
-    }
-    
-    const currentQty = Number(product.quantity || 0);
-    const newQty = Math.max(0, currentQty - Number(quantity || 0));
-    
-    console.log(`Decrementing stock for productId ${productId}: ${currentQty} - ${quantity} = ${newQty}`);
-    
-    const updated = await productModel.update(productId, {
-      ...product,
-      quantity: newQty
-    });
-    
+    const qty = Math.max(0, Number(quantity || 0));
+    if (!qty) return { success: true, affectedRows: 0 };
+    console.log(`Decrementing stock for productId ${productId} by ${qty}`);
+    const updated = await productModel.decrementStock(productId, qty);
     return { success: !!updated, affectedRows: updated ? 1 : 0 };
   } catch (err) {
     console.error(`Error decrementing stock for productId ${productId}:`, err);
@@ -324,12 +313,16 @@ exports.pay = async (req, res) => {
     let dbOrderId = null;
 
     // Prepare order items once for DB insert and stock updates
-    const orderItems = items.map(item => ({
-      productId: item.productId || item.product_id,
-      quantity: item.quantity,
-      price: item.price,
-      total: item.total || (item.price * item.quantity)
-    }));
+    const orderItems = items.map(item => {
+      const qty = Number(item.quantity || item.qty || 0);
+      const price = Number(item.price || 0);
+      return {
+        productId: item.productId || item.product_id,
+        quantity: qty,
+        price,
+        total: Number(item.total || (price * qty))
+      };
+    });
 
     // Check if Orders methods exist
     console.log('pay: Checking if Orders.createOrder exists:', typeof Orders.createOrder);
@@ -371,8 +364,9 @@ exports.pay = async (req, res) => {
     const failedDecrements = [];
     for (let item of orderItems) {
       try {
-        console.log(`[pay] Decrementing productId ${item.productId || item.product_id} by ${item.quantity}`);
-        const result = await decrementProductStock(item.productId || item.product_id, item.quantity);
+        const qty = Number(item.quantity || 0);
+        console.log(`[pay] Decrementing productId ${item.productId || item.product_id} by ${qty}`);
+        const result = await decrementProductStock(item.productId || item.product_id, qty);
         if (!result || !result.affectedRows || result.affectedRows === 0) {
           console.error(`[pay] Stock decrement failed for productId ${item.productId || item.product_id}`);
           failedDecrements.push({ productId: item.productId || item.product_id, quantity: item.quantity });
